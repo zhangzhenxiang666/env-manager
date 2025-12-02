@@ -2,6 +2,7 @@ use crate::config::{
     ConfigManager,
     models::{Profile, ProfileNames},
 };
+use colored::*;
 
 impl ProfileNames {
     pub fn display_simple(&self) {
@@ -9,7 +10,7 @@ impl ProfileNames {
             return;
         }
 
-        eprintln!("Profiles:");
+        eprintln!("{}", "Profiles:".yellow());
         let mut names_iter = self.iter().peekable();
         while let Some(name) = names_iter.next() {
             let is_last_profile = names_iter.peek().is_none();
@@ -18,7 +19,7 @@ impl ProfileNames {
             } else {
                 "├──"
             };
-            eprintln!("{branch_prefix} {name}");
+            eprintln!("{} {}", branch_prefix, name.cyan());
         }
     }
 
@@ -30,7 +31,7 @@ impl ProfileNames {
             return Ok(());
         }
 
-        eprintln!("Profiles:");
+        eprintln!("{}", "Profiles:".yellow());
         let mut names_iter = self.iter().peekable();
         while let Some(name) = names_iter.next() {
             let is_last_top_level_profile = names_iter.peek().is_none();
@@ -39,7 +40,7 @@ impl ProfileNames {
             } else {
                 "├──"
             };
-            eprintln!("{top_level_branch} {name}");
+            eprintln!("{} {}", top_level_branch, name.cyan());
 
             if let Some(profile_cfg) = config_manager.read_profile(name) {
                 let has_variables = !profile_cfg.variables.is_empty();
@@ -62,17 +63,29 @@ impl ProfileNames {
                     } else {
                         "└──" // If no variables after, this is the last branch
                     };
-                    // Print profiles as a list on one line
+                    let colored_profiles: Vec<String> = profile_cfg
+                        .profiles
+                        .iter()
+                        .map(|p| p.blue().to_string())
+                        .collect();
                     eprintln!(
-                        "{current_level_indent}{profiles_section_branch} profiles: {:?}",
-                        profile_cfg.profiles
+                        "{} {} {}: [{}]",
+                        current_level_indent,
+                        profiles_section_branch,
+                        "profiles".yellow(),
+                        colored_profiles.join(", ")
                     );
                 }
 
                 // Display variables section
                 if has_variables {
                     let variables_section_branch = "└──"; // Variables will always be the last section for a profile in this display context
-                    eprintln!("{current_level_indent}{variables_section_branch} variables");
+                    eprintln!(
+                        "{} {} {}",
+                        current_level_indent,
+                        variables_section_branch,
+                        "variables".yellow()
+                    );
 
                     let mut vars_iter = profile_cfg.variables.iter().peekable();
                     while let Some((key, value)) = vars_iter.next() {
@@ -82,7 +95,13 @@ impl ProfileNames {
                         } else {
                             "├──"
                         };
-                        eprintln!("{current_level_indent}    {var_branch} {key} = \"{value}\"");
+                        eprintln!(
+                            "{}    {} {} = {}",
+                            current_level_indent,
+                            var_branch,
+                            key.green(),
+                            format!("\"{value}\"").truecolor(180, 180, 180)
+                        );
                     }
                 }
             }
@@ -109,7 +128,7 @@ impl Profile {
             } else {
                 "└──"
             };
-            eprintln!("{profiles_prefix} profiles");
+            eprintln!("{} {}", profiles_prefix, "profiles".yellow());
 
             let mut profiles_iter = self.profiles.iter().peekable();
             let parent_pipe_prefix = if has_variables { "│   " } else { "    " };
@@ -121,7 +140,12 @@ impl Profile {
                 } else {
                     "├──"
                 };
-                eprintln!("{parent_pipe_prefix}{branch_prefix} {profile_name}");
+                eprintln!(
+                    "{}{}{}",
+                    parent_pipe_prefix,
+                    branch_prefix,
+                    profile_name.cyan()
+                );
 
                 if let Some(nested_profile) = config_manager.read_profile(profile_name) {
                     // Start of display_simple logic, adapted for indentation
@@ -141,15 +165,30 @@ impl Profile {
                         } else {
                             "└──"
                         };
+
+                        let colored_profiles: Vec<String> = nested_profile
+                            .profiles
+                            .iter()
+                            .map(|p| p.blue().to_string())
+                            .collect();
+
                         eprintln!(
-                            "{current_level_indent}{nested_profiles_prefix} profiles: {:?}",
-                            nested_profile.profiles
+                            "{}{} {}: [{}]",
+                            current_level_indent,
+                            nested_profiles_prefix,
+                            "profiles".yellow(),
+                            colored_profiles.join(", ")
                         );
                     }
 
                     if nested_has_variables {
                         let nested_vars_prefix = "└──";
-                        eprintln!("{current_level_indent}{nested_vars_prefix} variables");
+                        eprintln!(
+                            "{}{} {}",
+                            current_level_indent,
+                            nested_vars_prefix,
+                            "variables".yellow()
+                        );
 
                         let mut nested_var_iter = nested_profile.variables.iter().peekable();
                         while let Some((key, value)) = nested_var_iter.next() {
@@ -158,7 +197,13 @@ impl Profile {
                             } else {
                                 "    └──"
                             };
-                            eprintln!("{current_level_indent}{var_prefix} {key}: \"{value}\"");
+                            eprintln!(
+                                "{}{} {}: {}",
+                                current_level_indent,
+                                var_prefix,
+                                key.green(),
+                                format!("\"{value}\"").truecolor(180, 180, 180)
+                            );
                         }
                     }
                 }
@@ -166,7 +211,7 @@ impl Profile {
         }
 
         if has_variables {
-            eprintln!("└── variables");
+            eprintln!("└── {}", "variables".yellow());
             let mut vars_iter = self.variables.iter().peekable();
             while let Some((key, value)) = vars_iter.next() {
                 let is_last_var = vars_iter.peek().is_none();
@@ -176,7 +221,11 @@ impl Profile {
                     "├──"
                 };
                 // Corrected indentation for variables: 4 spaces to align with "variables" label.
-                eprintln!("    {var_branch} {key} = \"{value}\"");
+                eprintln!(
+                    "    {var_branch} {} = {}",
+                    key.green(),
+                    format!("\"{value}\"").truecolor(180, 180, 180)
+                );
             }
         }
         Ok(())
@@ -196,11 +245,17 @@ impl Profile {
             } else {
                 "└──"
             };
-            eprintln!("{prefix} profiles: {:?}", self.profiles);
+            let colored_profiles: Vec<String> =
+                self.profiles.iter().map(|p| p.blue().to_string()).collect();
+            eprintln!(
+                "{prefix} {}: [{}]",
+                "profiles".yellow(),
+                colored_profiles.join(", ")
+            );
         }
 
         if has_variables {
-            eprintln!("└── variables");
+            eprintln!("└── {}", "variables".yellow());
             let mut var_iter = self.variables.iter().peekable();
             while let Some((key, value)) = var_iter.next() {
                 let prefix = if var_iter.peek().is_some() {
@@ -208,8 +263,25 @@ impl Profile {
                 } else {
                     "    └──"
                 };
-                eprintln!("{prefix} {key}: \"{value}\"");
+                eprintln!(
+                    "{} {}: {}",
+                    prefix,
+                    key.green(),
+                    format!("\"{value}\"").truecolor(180, 180, 180)
+                );
             }
         }
     }
+}
+
+pub fn show_success(message: &str) {
+    eprintln!("{}", format!("✔ {message}").green());
+}
+
+pub fn show_error(message: &str) {
+    eprintln!("{}", format!("✗ {message}").red());
+}
+
+pub fn show_info(message: &str) {
+    eprintln!("{}", format!("ℹ {message}").blue());
 }

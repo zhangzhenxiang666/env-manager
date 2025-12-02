@@ -1,5 +1,6 @@
 use crate::config::ConfigManager;
 use crate::core;
+use crate::core::display;
 use std::collections::{HashMap, HashSet};
 
 pub fn handle(items: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
@@ -51,6 +52,13 @@ pub fn handle(items: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     // 5. Generate and print the script
     let script = core::script::generate_export_script(&vars);
     println!("{script}");
+
+    if !profile_items.is_empty() {
+        display::show_success(&format!(
+            "Successfully activated profiles: {}",
+            profile_items.join(", ")
+        ));
+    }
 
     Ok(())
 }

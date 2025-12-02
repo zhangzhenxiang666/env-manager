@@ -4,7 +4,7 @@ use clap::{Args, Parser, Subcommand};
 #[command(
     bin_name = "em",
     name = "em",
-    author = "zzx",
+    author = "ちょうていしょ",
     version = "0.1.0",
     about = "A powerful, profile-based environment manager",
     long_about = None,
@@ -22,6 +22,7 @@ pub enum Commands {
 
     /// Manage environment profiles
     #[command(subcommand)]
+    #[command(visible_alias = "pf")]
     Profile(ProfileCommands),
 
     /// Activate profiles or specific key-value pairs in the current session

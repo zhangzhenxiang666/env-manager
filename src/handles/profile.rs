@@ -4,6 +4,7 @@ use crate::{
         ProfileRenameArgs,
     },
     config::{ConfigManager, models::Profile},
+    core::display,
 };
 use daggy::Walker;
 
@@ -22,7 +23,7 @@ pub fn handle(profile_commands: ProfileCommands) -> Result<(), Box<dyn std::erro
 fn list(expand: bool, config_manager: &ConfigManager) -> Result<(), Box<dyn std::error::Error>> {
     let profile_names = config_manager.list_profile_names();
     if profile_names.is_empty() {
-        eprintln!("No profiles found.");
+        display::show_info("No profiles found.");
         return Ok(());
     }
 
@@ -44,7 +45,7 @@ fn create(
     }
     let profile = Profile::new();
     config_manager.write_profile(&name, &profile)?;
-    eprintln!("Profile '{name}' created successfully.");
+    display::show_success(&format!("Profile '{name}' created successfully."));
     Ok(())
 }
 
@@ -58,7 +59,9 @@ fn rename(
     } = rename_args;
 
     config_manager.rename_profile(&src_name, &dest_name)?;
-    eprintln!("Profile '{src_name}' renamed to '{dest_name}' successfully.",);
+    display::show_success(&format!(
+        "Profile '{src_name}' renamed to '{dest_name}' successfully."
+    ));
     Ok(())
 }
 
@@ -66,11 +69,11 @@ fn delete(
     name: String,
     config_manager: &mut ConfigManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(&node_index) = config_manager.app_config.profile_nodes.get(&name) {
-        let parents = config_manager.app_config.graph.parents(node_index);
+    if let Some(&node_index) = config_manager.app_config.graph.profile_nodes.get(&name) {
+        let parents = config_manager.app_config.graph.graph.parents(node_index);
         let dependents: Vec<String> = parents
-            .iter(&config_manager.app_config.graph)
-            .map(|(_, parent_index)| config_manager.app_config.graph[parent_index].clone())
+            .iter(&config_manager.app_config.graph.graph)
+            .map(|(_, parent_index)| config_manager.app_config.graph.graph[parent_index].clone())
             .collect();
 
         if !dependents.is_empty() {
@@ -83,15 +86,13 @@ fn delete(
     }
 
     config_manager.delete_profile(&name)?;
-    eprintln!("Profile '{name}' deleted successfully.");
+    display::show_success(&format!("Profile '{name}' deleted successfully."));
     Ok(())
 }
 
 fn add(
     name: String,
-
     items: Vec<String>,
-
     config_manager: &mut ConfigManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut profile = config_manager
@@ -102,8 +103,7 @@ fn add(
     for item in items {
         if let Some((key, value)) = item.split_once('=') {
             profile.add_variable(key, value);
-
-            eprintln!("Variable '{key}' added to profile '{name}'.");
+            display::show_success(&format!("Variable '{key}' added to profile '{name}'."));
         } else {
             let dependency_to_add = &item;
 
@@ -129,7 +129,9 @@ fn add(
             }
 
             profile.add_profile(dependency_to_add);
-            eprintln!("Nested profile '{dependency_to_add}' added to profile '{name}'.");
+            display::show_success(&format!(
+                "Nested profile '{dependency_to_add}' added to profile '{name}'."
+            ));
         }
     }
 
@@ -155,11 +157,13 @@ fn remove(
         let was_profile = profile.profiles.len() < original_len;
 
         if was_variable {
-            eprintln!("Variable '{item}' removed from profile '{name}'.");
+            display::show_success(&format!("Variable '{item}' removed from profile '{name}'."));
         } else if was_profile {
-            eprintln!("Nested profile '{item}' removed from profile '{name}'.");
+            display::show_success(&format!(
+                "Nested profile '{item}' removed from profile '{name}'."
+            ));
         } else {
-            eprintln!("Item '{item}' not found in profile '{name}'.");
+            display::show_info(&format!("Item '{item}' not found in profile '{name}'."));
         }
     }
 
