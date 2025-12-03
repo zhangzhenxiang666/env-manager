@@ -1,61 +1,52 @@
 use crate::config::ConfigManager;
-use crate::core;
-use crate::core::display;
-use std::collections::{HashMap, HashSet};
+use crate::utils;
+use crate::utils::display;
+use std::collections::HashMap;
 
 pub fn handle(items: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let config_manager = ConfigManager::new()?;
 
-    // 1. Separate direct key-value pairs from profile names
+    //  Separate direct key-value pairs from profile names
     let (key_value_items, profile_items): (Vec<_>, Vec<_>) =
         items.into_iter().partition(|item| item.contains('='));
 
-    // 2. Resolve dependencies for each specified profile to get a full list of variables to unset
-    let mut all_profiles_to_load = Vec::new();
-    let mut seen_profiles = HashSet::new();
-
-    for profile_name in &profile_items {
-        let ordered_deps = config_manager.resolve_dependencies(profile_name)?;
-        for dep in ordered_deps {
-            if seen_profiles.insert(dep.clone()) {
-                all_profiles_to_load.push(dep);
-            }
-        }
-    }
-    // also add the initial profiles themselves
-    for profile_name in &profile_items {
-        if seen_profiles.insert(profile_name.clone()) {
-            all_profiles_to_load.push(profile_name.clone());
-        }
-    }
-
-    // 3. Collect variables from all resolved profiles
     let mut vars = HashMap::new();
-    for profile_name in all_profiles_to_load {
-        if let Some(profile) = config_manager.read_profile(&profile_name) {
-            vars.extend(profile.variables.clone());
-        } else {
-            return Err(format!("Profile `{profile_name}` not found during deactivation").into());
-        }
+
+    for profile_name in &profile_items {
+        vars.extend(
+            config_manager
+                .read_profile(profile_name)
+                .ok_or_else(|| format!("Profile `{profile_name}` not found during activation"))?
+                .collect_vars(&config_manager)?,
+        );
     }
 
-    // 4. Add direct key-value pairs
+    // Add direct key-value pairs, potentially overwriting profile variables
+    let mut direct_keys = Vec::new();
     for item in key_value_items {
-        if let Some((key, _)) = item.split_once('=') {
+        if let Some((key, value)) = item.split_once('=') {
             if !key.is_empty() {
-                vars.insert(key.to_string(), String::new()); // Value doesn't matter for unset
+                vars.insert(key.to_string(), value.to_string());
+                direct_keys.push(key.to_string());
             }
         }
     }
 
     // 5. Generate and print the unset script
-    let script = core::script::generate_unset_script(&vars);
+    let script = utils::env::generate_unset_script(&vars);
     println!("{script}");
 
     if !profile_items.is_empty() {
         display::show_success(&format!(
             "Successfully deactivated profiles: {}",
             profile_items.join(", ")
+        ));
+    }
+
+    if !direct_keys.is_empty() {
+        display::show_success(&format!(
+            "Cleared environment variables: {}",
+            direct_keys.join(", ")
         ));
     }
 

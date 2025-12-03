@@ -107,20 +107,17 @@ pub enum GlobalCommands {
         #[arg(short, long)]
         expand: bool,
     },
+    /// Clear all global settings and unset corresponding environment variables in current shell
+    Clean,
 }
 
 #[derive(Debug, Args)]
 pub struct CommandsStatusArgs {
-    /// Check the status of a specific environment variable key
-    #[arg(short, long)]
-    key: Option<String>,
-
     /// Check the activation status of specific profiles
-    profiles: Vec<String>,
-
-    /// Display profile contents in a tree structure
+    pub profiles: Vec<String>,
+    /// Whether to expand profile contents in a tree structure
     #[arg(short, long)]
-    tree: bool,
+    pub expand: bool,
 }
 
 #[derive(Debug, Args)]

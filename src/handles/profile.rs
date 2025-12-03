@@ -1,11 +1,7 @@
-use crate::{
-    cli::{
-        ProfileCommands::{self, Add, Create, Delete, List, Remove, Rename},
-        ProfileRenameArgs,
-    },
-    config::{ConfigManager, models::Profile},
-    core::display,
-};
+use crate::cli::ProfileCommands::{self, Add, Create, Delete, List, Remove, Rename};
+use crate::config::ConfigManager;
+use crate::config::models::Profile;
+use crate::{cli::ProfileRenameArgs, utils::display};
 use daggy::Walker;
 
 pub fn handle(profile_commands: ProfileCommands) -> Result<(), Box<dyn std::error::Error>> {
@@ -30,7 +26,7 @@ fn list(expand: bool, config_manager: &ConfigManager) -> Result<(), Box<dyn std:
     if expand {
         profile_names.display_expand(config_manager)?;
     } else {
-        profile_names.display_simple();
+        profile_names.display_simple(config_manager)?;
     }
 
     Ok(())

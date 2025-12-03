@@ -1,4 +1,4 @@
-use env_manage::{cli::Cli, core::display, handles::run};
+use env_manage::{cli::Cli, handles::run, utils::display};
 
 fn main() {
     let cli = Cli::parse_args();
