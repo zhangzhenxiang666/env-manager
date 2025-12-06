@@ -10,7 +10,7 @@ pub struct Profile {
     #[serde(default)]
     pub variables: HashMap<String, String>,
     #[serde(default)]
-    pub profiles: Vec<String>,
+    pub profiles: HashSet<String>,
 }
 
 pub struct ProfileNames(pub Vec<String>);
@@ -30,7 +30,7 @@ impl Profile {
     }
 
     pub fn add_profile(&mut self, name: &str) {
-        self.profiles.push(name.to_string());
+        self.profiles.insert(name.to_string());
     }
 
     pub fn remove_profile(&mut self, name: &str) {

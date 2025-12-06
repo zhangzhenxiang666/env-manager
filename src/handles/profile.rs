@@ -55,6 +55,32 @@ fn rename(
     } = rename_args;
 
     config_manager.rename_profile(&src_name, &dest_name)?;
+
+    // Find reverse dependencies and update them
+    if let Some(&node_index) = config_manager.app_config.graph.profile_nodes.get(&src_name) {
+        let parents = config_manager.app_config.graph.graph.parents(node_index);
+        let dependents: Vec<String> = parents
+            .iter(&config_manager.app_config.graph.graph)
+            .map(|(_, parent_index)| config_manager.app_config.graph.graph[parent_index].clone())
+            .collect();
+
+        for dep in dependents {
+            config_manager
+                .read_profile_mut(&dep)
+                .unwrap()
+                .profiles
+                .remove(&src_name);
+
+            config_manager
+                .read_profile_mut(&dep)
+                .unwrap()
+                .profiles
+                .insert(dest_name.clone());
+
+            config_manager.write_profile(&dep, config_manager.read_profile(&dep).unwrap())?;
+        }
+    }
+
     display::show_success(&format!(
         "Profile '{src_name}' renamed to '{dest_name}' successfully."
     ));
@@ -91,14 +117,16 @@ fn add(
     items: Vec<String>,
     config_manager: &mut ConfigManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut profile = config_manager
-        .read_profile(&name)
-        .ok_or_else(|| format!("Profile `{name}` does not exist"))?
-        .clone();
+    if !config_manager.has_profile(&name) {
+        return Err(format!("Profile `{name}` does not exist").into());
+    }
 
     for item in items {
         if let Some((key, value)) = item.split_once('=') {
-            profile.add_variable(key, value);
+            config_manager
+                .read_profile_mut(&name)
+                .unwrap()
+                .add_variable(key, value);
             display::show_success(&format!("Variable '{key}' added to profile '{name}'."));
         } else {
             let dependency_to_add = &item;
@@ -124,14 +152,17 @@ fn add(
                 .into());
             }
 
-            profile.add_profile(dependency_to_add);
+            config_manager
+                .read_profile_mut(&name)
+                .unwrap()
+                .add_profile(dependency_to_add);
             display::show_success(&format!(
                 "Nested profile '{dependency_to_add}' added to profile '{name}'."
             ));
         }
     }
 
-    config_manager.write_profile(&name, &profile)?;
+    config_manager.write_profile(&name, config_manager.read_profile(&name).unwrap())?;
 
     Ok(())
 }
@@ -141,16 +172,25 @@ fn remove(
     items: Vec<String>,
     config_manager: &mut ConfigManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut profile = config_manager
-        .read_profile(&name)
-        .ok_or_else(|| format!("Profile `{name}` does not exist"))?
-        .clone();
+    if !config_manager.has_profile(&name) {
+        return Err(format!("Profile `{name}` does not exist").into());
+    }
 
     for item in items {
-        let was_variable = profile.remove_variable(&item).is_some();
-        let original_len = profile.profiles.len();
-        profile.remove_profile(&item);
-        let was_profile = profile.profiles.len() < original_len;
+        let was_variable = config_manager
+            .read_profile_mut(&name)
+            .unwrap()
+            .remove_variable(&item)
+            .is_some();
+
+        let original_len = config_manager.read_profile(&name).unwrap().profiles.len();
+
+        config_manager
+            .read_profile_mut(&name)
+            .unwrap()
+            .remove_profile(&item);
+
+        let was_profile = config_manager.read_profile(&name).unwrap().profiles.len() < original_len;
 
         if was_variable {
             display::show_success(&format!("Variable '{item}' removed from profile '{name}'."));
@@ -163,6 +203,6 @@ fn remove(
         }
     }
 
-    config_manager.write_profile(&name, &profile)?;
+    config_manager.write_profile(&name, config_manager.read_profile(&name).unwrap())?;
     Ok(())
 }

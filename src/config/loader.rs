@@ -46,6 +46,13 @@ pub fn read_profile<'a>(profiles: &'a HashMap<String, Profile>, name: &str) -> O
     profiles.get(name)
 }
 
+pub fn read_profile_mut<'a>(
+    profiles: &'a mut HashMap<String, Profile>,
+    name: &str,
+) -> Option<&'a mut Profile> {
+    profiles.get_mut(name)
+}
+
 pub fn write_profile(
     base_path: &Path,
     name: &str,

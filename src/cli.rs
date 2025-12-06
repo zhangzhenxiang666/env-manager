@@ -5,7 +5,7 @@ use clap::{Args, Parser, Subcommand};
     bin_name = "em",
     name = "em",
     author = "ちょうていしょ",
-    version = "0.1.0",
+    version = env!("CARGO_PKG_VERSION"),
     about = "A powerful, profile-based environment manager",
     long_about = None,
     color = clap::ColorChoice::Always

@@ -1,0 +1,101 @@
+# 项目介绍
+
+这是一个用于管理环境变量的命令行工具, 采用rust编写
+这个项目的最终的使用是在.bashrc中添加一个函数来配合rust编译生成的二进制文件来达到操作环境变量的目的:
+脚本函数如下:
+
+```bash
+function em() {
+    local output
+    local exit_code
+
+    output=$(/home/zzx/Codespace/rust_code/env-manage/target/debug/env-manage "$@")
+    exit_code=$?
+
+    if [[ $exit_code -ne 0 ]]; then
+        return $exit_code
+    fi
+
+    if [[ -z "$output" ]]; then
+        return 0
+    fi
+
+    if ! eval "$output" 2>/dev/null; then
+        echo "$output"
+        return $exit_code
+    fi
+}
+em init
+```
+
+如果要操作当前环境变量, rust二进制文件会往标准输出中输出shell命令, 而eval函数会尝试解析输出的命令并执行
+如果命令执行失败, 会忽略eval的错误, 并返回ouput的输出和退出码, 这是因为这个命令行工具有帮助信息, 因此除非rust中返回了错误码, 否则不会将其视为错误
+况
+
+config模块里面定义了需要的模型和数据结构, 也有ConfigManager来管理路径
+
+整个项目的思路是这样的:
+用户可以定义一组环境变量(在项目中称为profile, 以toml的格式存在), 在项目最终的使用中会在~/.config/env-manage中创建profiles目录。
+
+而profile的格式如下:
+
+```toml
+profiles = [] # 用来表示该profile引用了其他哪些profile
+[variables] # 单独定义的环境变量 k = v这样的结构
+```
+
+## TUI 核心设计
+
+TUI 的实现遵循了受 [Ratatui Template](https://github.com/ratatui-org/ratatui-template) 启发的组件化、模块化的设计思想，以确保代码的清晰性、可扩展性和可维护性。
+
+### 1. 组件化架构 (Component-Based Architecture)
+
+- **`App` 作为容器**: 主 `App` 结构体 (`tui/app.rs`) 是一个顶层容器，它持有各个独立的业务组件，并管理应用的全局状态（如 `AppState`, `shutdown`）。它不直接处理具体业务逻辑，而是将任务委托给相应的组件。
+- **独立的业务组件**: 每个主要的 UI 功能或区域都被封装在一个独立的组件中（位于 `tui/components/` 目录），例如：
+  - `ListComponent`: 负责主界面的 `profile` 列表的显示、选择、滚动和变更追踪。
+  - `AddNewComponent`: 负责“新建 Profile”弹窗内的所有状态，包括输入框、焦点管理和未来可扩展的继承列表。
+- **单一职责**: 每个组件都遵循单一职责原则，只关心自己的状态和行为。
+
+### 2. 可复用的 `Input` 组件
+
+- **核心输入单元**: 为了处理所有文本输入场景（如新建名称、搜索、过滤），我们抽象出了一个可复用的 `Input` 结构体 (`tui/utils.rs`)。
+- **封装的状态与逻辑**: `Input` 结构体是所有文本输入框的“单一数据源”。它封装了以下内容：
+  - **状态**: `text` (输入文本), `cursor_position` (光标位置), `is_valid` (校验状态), `error_message` (错误信息)。
+  - **逻辑**: 所有与输入和光标操作相关的方法，如 `move_cursor_left/right`, `enter_char`, `delete_char` 等。
+- **优势**: 这种设计避免了在多个模块中重复实现输入框逻辑，并提供了统一、健壮的输入体验。
+
+### 3. 清晰的数据流与事件处理
+
+- **事件路由**: 主事件循环 (`tui/event.rs`) 接收到键盘事件后，会根据当前的 `AppState` 将事件路由到对应的事件处理模块（如 `event/add_new.rs`）。
+- **组件方法调用**: 事件处理模块是“薄”的，它只负责解析按键，并调用相应组件的**方法**来更新状态。
+  - **示例**: 在 `AddNew` 状态下，`add_new.rs` 接收到 `Left` 键，它会调用 `app.add_new_component.name_input.move_cursor_left()`。它不直接操作 `cursor_position`。
+- **视图 = 状态的函数**: 渲染模块 (`tui/widgets/`) 是“无状态”的。它们只负责接收组件的引用，读取其内部状态，并将 UI 绘制到屏幕上。它们不包含任何业务逻辑。
+
+这个架构使得添加新功能（比如“重命名”或“编辑”弹窗）变得非常简单：只需创建一个新的组件，为其实现状态和方法，然后在 `app.rs` 中注册，并添加相应的事件处理和渲染逻辑即可。
+
+## TUI 功能实现状态
+
+- [x] **基本布局**: 实现了 Header, Main (左右分栏), Bottom 的三段式布局。
+- [x] **Profile 列表显示**: 左侧面板能成功加载并显示所有 `profile`。
+- [x] **列表导航**: 可使用 `J`/`K`/`↑`/`↓` 在 `profile` 列表中进行上下导航。
+- [x] **内容显示**: 右侧面板能显示选中 `profile` 的“继承列表”和“环境变量”。
+- [x] **状态切换**:
+  - `List -> Edit`: 按 `Enter` 可进入 `Edit` 状态，右侧面板边框高亮。
+  - `Edit -> List`: 在 `Edit` 状态下按 `Esc` 可返回 `List` 状态。
+  - `List -> Delete`: 按 `d` 可进入删除确认状态。
+- [x] **变更追踪**: 对 `profile` 的修改会被追踪，并在列表项旁用 `*` 标记。
+- [x] **保存功能**:
+  - `s` (Save Selected): 可保存当前选中的、已修改的 `profile`。
+  - `w` (Save All): 可保存所有已修改的 `profile`。
+- [x] **安全删除功能**:
+  - `d` (Delete): 删除 `profile` 前会进行依赖检查，并弹出确认窗口。
+- [x] **新建功能 `n`**:
+  - 弹出窗口并允许用户输入新 `profile` 的名称，支持光标左右移动。
+  - **交互优化**: `Enter` 键自动切换焦点，输入错误时阻止切换；`Esc` 安全退出。
+  - **变量编辑**: 支持添加、删除、编辑变量 (`Key`/`Value`)。
+  - **输入校验**: 实时校验 Profile 名称和变量 Key（非空、无空格、不以数字开头）。
+  - **UI 优化**: 变量列表支持滚动条，高度自适应，标题显示计数。
+  - **代码重构**: 事件处理逻辑 (`tui/event/add_new.rs`) 已重构，逻辑更清晰。
+- [ ] **重命名功能 `F2`**: 对选中的 `profile` 进行重命名。
+- [ ] **搜索功能 `/`**: 允许用户通过名称搜索 `profile`。
+- [ ] **编辑模式**: 在 `Edit` 状态下，实现对“继承列表”和“环境变量”的增删改。

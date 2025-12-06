@@ -22,7 +22,7 @@ impl AppConfig {
 
 pub struct ConfigManager {
     pub app_config: AppConfig,
-    base_path: PathBuf,
+    pub base_path: PathBuf,
 }
 
 impl ConfigManager {
@@ -67,7 +67,11 @@ impl ConfigManager {
         loader::read_profile(&self.app_config.profiles, name)
     }
 
-    pub fn write_profile(&mut self, name: &str, profile: &Profile) -> Result<(), Box<dyn Error>> {
+    pub fn read_profile_mut(&mut self, name: &str) -> Option<&mut Profile> {
+        loader::read_profile_mut(&mut self.app_config.profiles, name)
+    }
+
+    pub fn write_profile(&self, name: &str, profile: &Profile) -> Result<(), Box<dyn Error>> {
         loader::write_profile(&self.base_path, name, profile)?;
         Ok(())
     }
@@ -81,12 +85,12 @@ impl ConfigManager {
         self.app_config.profiles.contains_key(name)
     }
 
-    pub fn delete_profile(&mut self, name: &str) -> Result<(), Box<dyn Error>> {
+    pub fn delete_profile(&self, name: &str) -> Result<(), Box<dyn Error>> {
         loader::delete_profile_file(&self.base_path, name)?;
         Ok(())
     }
 
-    pub fn rename_profile(&mut self, old_name: &str, new_name: &str) -> Result<(), Box<dyn Error>> {
+    pub fn rename_profile(&self, old_name: &str, new_name: &str) -> Result<(), Box<dyn Error>> {
         loader::rename_profile_file(&self.base_path, old_name, new_name)?;
         Ok(())
     }
