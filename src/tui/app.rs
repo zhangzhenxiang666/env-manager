@@ -4,6 +4,7 @@ use crate::config::ConfigManager;
 use crate::config::graph::ProfileGraph;
 use crate::config::loader;
 use crate::tui::components::add_new::AddNewComponent;
+use crate::tui::components::edit::EditComponent;
 use crate::tui::components::list::ListComponent;
 use daggy::Walker;
 use ratatui::crossterm::execute;
@@ -23,7 +24,6 @@ pub enum AppState {
     AddNew,
     Rename,
     ConfirmDelete,
-    Search,
 }
 
 pub struct App {
@@ -31,6 +31,7 @@ pub struct App {
     pub state: AppState,
     pub shutdown: bool,
     pub add_new_component: AddNewComponent,
+    pub edit_component: EditComponent,
     pub list_component: ListComponent,
     pub status_message: Option<String>,
     pub pending_deletes: std::collections::HashMap<String, Option<String>>,
@@ -50,6 +51,7 @@ impl App {
             state: Default::default(),
             shutdown: false,
             add_new_component: Default::default(),
+            edit_component: Default::default(),
             list_component,
             status_message: None,
             pending_deletes: std::collections::HashMap::new(),
@@ -202,6 +204,13 @@ impl App {
 
         self.status_message = Some(format!("Renamed '{old_name}' to '{new_name}'"));
         Ok(())
+    }
+
+    pub fn start_editing(&mut self, profile_name: &str) {
+        if let Some(profile) = self.config_manager.app_config.profiles.get(profile_name) {
+            self.edit_component = EditComponent::from_profile(profile_name, profile);
+            self.state = AppState::Edit;
+        }
     }
 
     pub fn delete_selected_profile(&mut self) -> Result<(), Box<dyn std::error::Error>> {

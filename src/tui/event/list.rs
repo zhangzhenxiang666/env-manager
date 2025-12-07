@@ -57,13 +57,9 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
             KeyCode::Enter => {
                 // Allow entering Edit mode from search mode
                 if !list_component.get_filtered_profiles().is_empty() {
-                    app.state = AppState::Edit;
-                    // Optionally exit search mode?
-                    // User didn't specify, but often you want to see context.
-                    // But if we go to Edit, we are editing that specific profile.
-                    // Let's keep search mode active so when they come back the filter is there?
-                    // Or clearer to exit?
-                    // Let's keep it for now as it's less destructive.
+                    let filtered = list_component.get_filtered_profiles();
+                    let name = filtered[list_component.selected_index].clone();
+                    app.start_editing(&name);
                 }
             }
             KeyCode::F(2) => {
@@ -97,7 +93,8 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
             }
             KeyCode::Enter => {
                 if !list_component.profile_names.is_empty() {
-                    app.state = AppState::Edit;
+                    let name = list_component.profile_names[list_component.selected_index].clone();
+                    app.start_editing(&name);
                 }
             }
             KeyCode::Char('s') => {

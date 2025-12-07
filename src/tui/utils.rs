@@ -113,3 +113,32 @@ pub fn validate_starts_with_non_digit(text: &str) -> std::result::Result<(), Str
     }
     Ok(())
 }
+
+pub fn input_to_span<'a>(
+    input: &Input,
+    is_focused: bool,
+    theme: &crate::tui::theme::Theme,
+) -> Line<'a> {
+    if is_focused {
+        // Simple cursor simulation: split text at cursor
+        let (left, right) = input.text.split_at(input.cursor_position);
+        // Note: Cursor rendering usually requires multiple spans or manual composition
+        // For simple usage in a Cell, we might just return the text styled.
+        // But the user probably wants to see the cursor.
+        // Since we return a single Span, we can't easily do multi-colored chars unless we return `Line`.
+        // Wait, `Cell` accepts `Line` or `Span`. Let's assume `input_to_span` returns `Line`.
+        // Accessing main_right.rs showed `Cell::from(span)`. Cell::from accepts Span or String or Text or Line.
+        // Let's change return type to Line to support cursor highlighting.
+
+        let cursor_char = if right.is_empty() { " " } else { &right[0..1] };
+        let right_rest = if right.is_empty() { "" } else { &right[1..] };
+
+        Line::from(vec![
+            Span::raw(left.to_string()),
+            Span::styled(cursor_char.to_string(), theme.input_cursor()),
+            Span::raw(right_rest.to_string()),
+        ])
+    } else {
+        Line::from(input.text.clone())
+    }
+}

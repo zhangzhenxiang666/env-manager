@@ -117,6 +117,7 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
             let mut block = Block::default()
                 .borders(Borders::ALL)
+                .title_top(Line::from("Rename Profile").left_aligned())
                 .border_style(border_style);
 
             if let Some(err) = &input.error_message {

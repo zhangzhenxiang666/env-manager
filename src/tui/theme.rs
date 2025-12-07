@@ -106,4 +106,8 @@ impl Theme {
             .fg(Color::Black)
             .add_modifier(Modifier::BOLD)
     }
+
+    pub fn row_selected(&self) -> Style {
+        self.selection_active()
+    }
 }

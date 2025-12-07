@@ -19,6 +19,7 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
     match app.state {
         List => list_state(frame, area, app),
         AddNew => list_state(frame, area, app),
+        AppState::Edit => edit_state(frame, area, app),
         AppState::Rename => rename_state(frame, area),
         _ => {}
     }
@@ -65,6 +66,53 @@ fn rename_state(frame: &mut Frame<'_>, area: Rect) {
     ]))
     .left_aligned()
     .style(Theme::new().text_dim());
+
+    frame.render_widget(help, area);
+}
+
+fn edit_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
+    use crate::tui::components::edit::{EditFocus, EditVariableFocus};
+
+    let edit = &app.edit_component;
+
+    let help_text = if edit.is_editing_variable {
+        // Editing popup is active - show editing-specific help
+        match edit.variable_column_focus {
+            EditVariableFocus::Key => vec![
+                Span::raw("Esc: Cancel"),
+                Span::raw("  Enter: Confirm"),
+                Span::raw("  Tab:  Switch Field"),
+            ],
+            EditVariableFocus::Value => vec![
+                Span::raw("Esc: Cancel"),
+                Span::raw("  Enter: Confirm"),
+                Span::raw("  Tab:  Switch Field"),
+            ],
+        }
+    } else {
+        // Navigation mode - show section-specific help
+        match edit.focus {
+            EditFocus::Profiles => vec![
+                Span::raw("Esc: Back (Mem Save)"),
+                Span::raw("  Tab: Focus"),
+                Span::raw("  ↑/↓: Navigate"),
+                Span::raw("  N: Add Dep"),
+                Span::raw("  D: Del Dep"),
+            ],
+            EditFocus::Variables => vec![
+                Span::raw("Esc: Back (Mem Save)"),
+                Span::raw("  Tab: Focus"),
+                Span::raw("  ↑↓←→ : Navigate"),
+                Span::raw("  A: Add Var"),
+                Span::raw("  E: Edit"),
+                Span::raw("  D: Del Var"),
+            ],
+        }
+    };
+
+    let help = Text::from(Line::from(help_text))
+        .left_aligned()
+        .style(Theme::new().text_dim());
 
     frame.render_widget(help, area);
 }

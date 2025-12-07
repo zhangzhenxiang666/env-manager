@@ -453,7 +453,7 @@ fn render_name_help(frame: &mut Frame<'_>, area: Rect) {
         ],
         vec![
             Span::styled("←/→", Style::default().fg(Color::Rgb(255, 138, 199))),
-            Span::raw(": Move cursor"),
+            Span::raw(" : Move cursor"),
         ],
         vec![
             Span::styled("Ctrl+s", Style::default().fg(Color::Rgb(106, 255, 160))),
