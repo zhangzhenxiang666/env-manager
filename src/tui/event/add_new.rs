@@ -257,15 +257,15 @@ fn validate_name(app: &mut App) {
     let new_name = add_new.name_input.text.trim();
 
     if let Err(e) = utils::validate_non_empty(new_name) {
-        add_new.name_input.set_error_message(&format!("Name {}", e));
+        add_new.name_input.set_error_message(&format!("Name {e}"));
         return;
     }
     if let Err(e) = utils::validate_no_spaces(new_name) {
-        add_new.name_input.set_error_message(&format!("Name {}", e));
+        add_new.name_input.set_error_message(&format!("Name {e}"));
         return;
     }
     if let Err(e) = utils::validate_starts_with_non_digit(new_name) {
-        add_new.name_input.set_error_message(&format!("Name {}", e));
+        add_new.name_input.set_error_message(&format!("Name {e}"));
         return;
     }
 

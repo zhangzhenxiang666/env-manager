@@ -20,70 +20,82 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     frame.render_widget(Clear, area);
 
     let theme = Theme::new();
-
-    let popup_border_style = theme.block_active();
+    let add_new_state = &app.add_new_component;
 
     let popup_block = Block::default()
         .title("Create New Profile")
         .borders(Borders::ALL)
-        .border_style(popup_border_style)
+        .border_style(theme.block_active())
         .border_type(ratatui::widgets::BorderType::Thick);
 
     let inner_popup_area = popup_block.inner(area);
     frame.render_widget(popup_block, area);
 
-    let chunks = Layout::vertical([
-        Constraint::Length(4),  // Name section
-        Constraint::Length(5),  // Profiles section
+    let layout = Layout::vertical([
+        Constraint::Length(3),                     // Name section
+        Constraint::Length(2 + MAX_HEIGHT as u16), // Profiles section
         Constraint::Length(12), // Variables section (8 items + 2 header + 2 border)
         Constraint::Min(0),     // Spacer
         Constraint::Length(2),  // Help section
     ])
     .split(inner_popup_area);
 
-    let name_area = chunks[0];
-    let profiles_area = chunks[1];
-    let variables_area = chunks[2];
-    // chunks[3] is spacer
-    let help_area = chunks[4];
+    let name_area = layout[0];
+    let profiles_area = layout[1];
+    let variables_area = layout[2];
+    let help_area = layout[4];
 
-    name(frame, &app.add_new_component, name_area);
-    profiles(frame, app, profiles_area);
-    variables(frame, app, variables_area);
-
-    match app.add_new_component.focus {
-        AddNewFocus::Name => name_help(frame, help_area),
-        AddNewFocus::Profiles => profiles_help(frame, help_area),
-        AddNewFocus::Variables => variables_help(frame, app, help_area),
-    }
+    render_name_section(frame, add_new_state, name_area, &theme);
+    render_profiles_section(frame, app, profiles_area, &theme);
+    render_variables_section(frame, app, variables_area, &theme);
+    render_help_section(frame, app, help_area);
 }
 
-fn name(frame: &mut Frame<'_>, add_new: &AddNewComponent, area: Rect) {
-    let chunks = Layout::vertical([
-        Constraint::Length(3), // For the input box
-        Constraint::Length(1), // For the validation message
-    ])
-    .split(area);
+fn render_name_section(
+    frame: &mut Frame<'_>,
+    add_new: &AddNewComponent,
+    area: Rect,
+    theme: &Theme,
+) {
+    let is_focused = add_new.focus == AddNewFocus::Name;
 
-    let input_area = chunks[0];
-    let validation_msg_area = chunks[1];
-
-    let mut input_block = Block::default().title("Name").borders(Borders::ALL);
-    if add_new.focus == AddNewFocus::Name {
-        input_block = input_block.border_style(Theme::new().block_active());
+    let border_style = if !add_new.name_input.is_valid {
+        theme.text_error()
+    } else if is_focused {
+        theme.block_active()
     } else {
-        input_block = input_block.border_style(Theme::new().block_inactive());
+        theme.block_inactive()
+    };
+
+    let mut input_block = Block::default()
+        .title("Name")
+        .borders(Borders::ALL)
+        .border_style(border_style);
+
+    if !add_new.name_input.is_valid {
+        if let Some(err) = &add_new.name_input.error_message {
+            input_block = input_block.title_bottom(
+                Line::from(err.as_str())
+                    .style(theme.text_error())
+                    .right_aligned(),
+            );
+        }
     }
-    let text_input_rect = input_block.inner(input_area);
-    frame.render_widget(input_block, input_area);
+
+    let text_input_rect = input_block.inner(area);
+    frame.render_widget(input_block, area);
 
     let input_text = &add_new.name_input.text;
     let cursor_char_pos = add_new.name_input.cursor_position;
-    let prefix = &input_text[..input_text
-        .char_indices()
-        .nth(cursor_char_pos)
-        .map_or(input_text.len(), |(i, _)| i)];
-    let cursor_display_pos = UnicodeWidthStr::width(prefix) as u16;
+
+    // Calculate scroll offset for horizontal scrolling
+    let prefix_width = input_text
+        .chars()
+        .take(cursor_char_pos)
+        .map(|c| UnicodeWidthStr::width(c.to_string().as_str()))
+        .sum::<usize>();
+
+    let cursor_display_pos = prefix_width as u16;
     let input_display_width = text_input_rect.width;
     let scroll_offset = if cursor_display_pos >= input_display_width {
         cursor_display_pos - input_display_width + 1
@@ -92,31 +104,21 @@ fn name(frame: &mut Frame<'_>, add_new: &AddNewComponent, area: Rect) {
     };
 
     let input_paragraph = Paragraph::new(input_text.as_str())
-        .style(Theme::new().text_normal())
+        .style(theme.text_normal())
         .scroll((0, scroll_offset));
     frame.render_widget(input_paragraph, text_input_rect);
 
-    if add_new.focus == AddNewFocus::Name {
+    if is_focused {
         frame.set_cursor_position((
             text_input_rect.x + cursor_display_pos - scroll_offset,
             text_input_rect.y,
         ));
     }
 
-    let validation_message = if !add_new.name_input.is_valid {
-        add_new
-            .name_input
-            .error_message
-            .as_deref()
-            .unwrap_or("Error: Unknown")
-    } else {
-        ""
-    };
-    let validation_paragraph = Paragraph::new(validation_message).style(Theme::new().text_error());
-    frame.render_widget(validation_paragraph, validation_msg_area);
+    // Validation message handled by block title now
 }
 
-fn profiles(frame: &mut Frame, app: &App, area: Rect) {
+fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     let add_new = &app.add_new_component;
     let available_profiles: Vec<_> = app
         .list_component
@@ -133,36 +135,36 @@ fn profiles(frame: &mut Frame, app: &App, area: Rect) {
         total_profiles,
     ))
     .left_aligned();
+
     let right_title =
         Line::from(format!("Selected: {}", add_new.added_profiles.len())).right_aligned();
-    let mut profiles_block = Block::default()
+
+    let border_style = if is_focused {
+        theme.block_active()
+    } else {
+        theme.block_inactive()
+    };
+
+    let profiles_block = Block::default()
         .title_top(left_title)
         .title_top(right_title)
-        .borders(Borders::ALL);
-
-    if is_focused {
-        profiles_block = profiles_block.border_style(Theme::new().block_active());
-    } else {
-        profiles_block = profiles_block.border_style(Theme::new().block_inactive());
-    }
+        .borders(Borders::ALL)
+        .border_style(border_style);
 
     let list_items: Vec<ListItem> = available_profiles
         .iter()
         .skip(add_new.profiles_scroll_offset)
         .take(MAX_HEIGHT)
         .map(|name| {
-            let prefix = if add_new.added_profiles.contains(*name) {
-                "[✔] "
-            } else {
-                "[ ] "
-            };
+            let is_selected = add_new.added_profiles.contains(*name);
+            let prefix = if is_selected { "[✔] " } else { "[ ] " };
             ListItem::new(format!("{prefix}{name}"))
         })
         .collect();
 
     let mut results_list = List::new(list_items).block(profiles_block);
     if is_focused {
-        results_list = results_list.highlight_style(Theme::new().selection_active());
+        results_list = results_list.highlight_style(theme.selection_active());
     }
 
     let mut list_state = ListState::default();
@@ -173,7 +175,7 @@ fn profiles(frame: &mut Frame, app: &App, area: Rect) {
     }
     frame.render_stateful_widget(results_list, area, &mut list_state);
 
-    // --- Scrollbar ---
+    // Scrollbar
     let scrollbar = Scrollbar::default()
         .orientation(ScrollbarOrientation::VerticalRight)
         .symbols(ratatui::symbols::scrollbar::VERTICAL)
@@ -194,7 +196,7 @@ fn profiles(frame: &mut Frame, app: &App, area: Rect) {
     );
 }
 
-fn variables(frame: &mut Frame, app: &App, area: Rect) {
+fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     let add_new = &app.add_new_component;
     let is_focused = add_new.focus == AddNewFocus::Variables;
 
@@ -206,14 +208,18 @@ fn variables(frame: &mut Frame, app: &App, area: Rect) {
     let total_count = add_new.variables.len();
 
     let left_title =
-        Line::from(format!("Variables ({}/{})", current_index, total_count)).left_aligned();
+        Line::from(format!("Variables ({current_index}/{total_count})")).left_aligned();
 
-    let mut variables_block = Block::default().title_top(left_title).borders(Borders::ALL);
-    if is_focused && !add_new.is_editing_variable {
-        variables_block = variables_block.border_style(Theme::new().block_active());
+    let border_style = if is_focused && !add_new.is_editing_variable {
+        theme.block_active()
     } else {
-        variables_block = variables_block.border_style(Theme::new().block_inactive());
-    }
+        theme.block_inactive()
+    };
+
+    let variables_block = Block::default()
+        .title_top(left_title)
+        .borders(Borders::ALL)
+        .border_style(border_style);
 
     let header = Row::new(vec!["Key", "Value"])
         .style(Style::new().add_modifier(Modifier::BOLD))
@@ -224,22 +230,23 @@ fn variables(frame: &mut Frame, app: &App, area: Rect) {
         .iter()
         .enumerate()
         .map(|(i, (key_input, value_input))| {
-            let is_selected = is_focused && i == add_new.selected_variable_index;
+            let is_row_selected = is_focused && i == add_new.selected_variable_index;
 
-            let (key_style, value_style) = if is_selected {
+            let (key_style, value_style) = if is_row_selected {
                 match add_new.focused_column {
                     AddNewVariableFocus::Key => (
-                        Theme::new().cell_focus(),       // Focused
-                        Theme::new().selection_active(), // Unfocused but selected row
+                        theme.cell_focus(),       // Focused cell
+                        theme.selection_active(), // Selected row, unfocused cell
                     ),
                     AddNewVariableFocus::Value => (
-                        Theme::new().selection_active(), // Unfocused but selected row
-                        Theme::new().cell_focus(),       // Focused
+                        theme.selection_active(), // Selected row, unfocused cell
+                        theme.cell_focus(),       // Focused cell
                     ),
                 }
             } else {
-                (Theme::new().text_normal(), Theme::new().text_normal())
+                (theme.text_normal(), theme.text_normal())
             };
+
             Row::new(vec![
                 Cell::from(key_input.text.as_str()).style(key_style),
                 Cell::from(value_input.text.as_str()).style(value_style),
@@ -252,14 +259,14 @@ fn variables(frame: &mut Frame, app: &App, area: Rect) {
         table_state.select(Some(add_new.selected_variable_index));
     }
 
-    let widths = [Constraint::Percentage(30), Constraint::Percentage(70)];
-    let table = Table::new(rows, widths)
+    let col_widths = [Constraint::Percentage(30), Constraint::Percentage(70)];
+    let table = Table::new(rows, col_widths)
         .header(header)
         .block(variables_block.clone());
 
     frame.render_stateful_widget(table, area, &mut table_state);
 
-    // --- Scrollbar ---
+    // Scrollbar
     let scrollbar = Scrollbar::default()
         .orientation(ScrollbarOrientation::VerticalRight)
         .symbols(ratatui::symbols::scrollbar::VERTICAL)
@@ -279,13 +286,27 @@ fn variables(frame: &mut Frame, app: &App, area: Rect) {
         &mut scrollbar_state,
     );
 
-    // --- Popup Input Box Rendering ---
+    // Popup Input Box for editing
     if is_focused && add_new.is_editing_variable {
         if let Some(focused_input) = add_new.get_focused_variable_input() {
             let table_inner_area = variables_block.inner(area);
             let row_index = add_new.selected_variable_index;
-            // Calculate visual row index by subtracting scroll offset
+            // Visual row calculation might need adjustment depending on how Table handles it implicitly.
+            // But since we are manually calculating overlay position, we need to know where the row is relative to the table block.
+            // Table with offset N means the Nth item is at the top (after header).
+
             let visual_row_index = row_index.saturating_sub(add_new.variables_scroll_offset);
+
+            // +2 for border + header_height(1) + bottom_margin(1)?
+            // Default header height is 1 line. With bottom_margin(1), total header area is 2 lines.
+            // So content starts at y + 1 (top border) + 2 (header). = y + 3?
+            // Let's re-verify.
+            // In original code: `row_y = table_inner_area.y + 2 + visual_row_index as u16;`
+            // If table_inner_area is inner of block.
+            // Header is rendered inside block.
+            // If header has bottom_margin(1), it takes 2 lines.
+            // So first data row is at y+2. YES.
+
             let row_y = table_inner_area.y + 2 + visual_row_index as u16;
 
             let col_index = match add_new.focused_column {
@@ -293,9 +314,13 @@ fn variables(frame: &mut Frame, app: &App, area: Rect) {
                 AddNewVariableFocus::Value => 1,
             };
 
-            let layout = Layout::horizontal(widths).spacing(1);
+            let layout = Layout::horizontal(col_widths).spacing(1);
             let column_chunks = layout.split(table_inner_area);
             let cell_area = column_chunks[col_index];
+
+            // Overlay the cell. Expand slightly width wise for border?
+            // Original code was: x-1, y-1, width+2, height=3.
+            // This centers the edit box 1 char outside the cell to cover borders if any, or just be prominent.
 
             let popup_area = Rect {
                 x: cell_area.x.saturating_sub(1),
@@ -308,41 +333,60 @@ fn variables(frame: &mut Frame, app: &App, area: Rect) {
                 AddNewVariableFocus::Key => "Edit Variable",
                 AddNewVariableFocus::Value => "Edit Value",
             };
-            render_input_popup(frame, popup_area, focused_input, title);
+
+            render_variable_input_popup(frame, popup_area, focused_input, title, theme);
         }
     }
 }
 
-fn render_input_popup(frame: &mut Frame, area: Rect, input: &Input, title: &str) {
+fn render_variable_input_popup(
+    frame: &mut Frame,
+    area: Rect,
+    input: &Input,
+    title: &str,
+    theme: &Theme,
+) {
     frame.render_widget(Clear, area);
-    let mut block = Block::default().title(title).borders(Borders::ALL);
 
-    if input.is_valid {
-        block = block.border_style(Theme::new().block_active());
+    let border_style = if input.is_valid {
+        theme.block_active()
     } else {
-        block = block.border_style(Theme::new().text_error());
+        theme.text_error()
+    };
+
+    let mut block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_style(border_style);
+
+    if !input.is_valid {
         if let Some(err) = &input.error_message {
             block = block.title_bottom(
                 Line::from(err.as_str())
-                    .style(Theme::new().text_error())
+                    .style(theme.text_error())
                     .right_aligned(),
             );
         }
     }
+
     let inner_area = block.inner(area);
 
     let text = &input.text;
     let cursor_pos = input.cursor_position;
-    let prefix = &text[..text
-        .char_indices()
-        .nth(cursor_pos)
-        .map_or(text.len(), |(i, _)| i)];
-    let cursor_display_pos = UnicodeWidthStr::width(prefix) as u16;
+
+    let prefix_width = text
+        .chars()
+        .take(cursor_pos)
+        .map(|c| UnicodeWidthStr::width(c.to_string().as_str()))
+        .sum::<usize>();
+
+    let cursor_display_pos = prefix_width as u16;
     let scroll_offset = if cursor_display_pos >= inner_area.width {
         cursor_display_pos - inner_area.width + 1
     } else {
         0
     };
+
     let paragraph = Paragraph::new(text.as_str()).scroll((0, scroll_offset));
 
     frame.render_widget(block, area);
@@ -353,7 +397,15 @@ fn render_input_popup(frame: &mut Frame, area: Rect, input: &Input, title: &str)
     ));
 }
 
-fn generic_help_spans<'a>(help_info: &'a [Vec<Span<'a>>], area: Rect) -> Vec<Line<'a>> {
+fn render_help_section(frame: &mut Frame<'_>, app: &App, area: Rect) {
+    match app.add_new_component.focus {
+        AddNewFocus::Name => render_name_help(frame, area),
+        AddNewFocus::Profiles => render_profiles_help(frame, area),
+        AddNewFocus::Variables => render_variables_help(frame, app, area),
+    }
+}
+
+fn create_help_spans<'a>(help_info: &'a [Vec<Span<'a>>], area: Rect) -> Vec<Line<'a>> {
     let total_width = area.width as usize;
     let mut lines: Vec<Line> = vec![];
     let mut current_line_spans: Vec<Span> = vec![];
@@ -389,7 +441,7 @@ fn generic_help_spans<'a>(help_info: &'a [Vec<Span<'a>>], area: Rect) -> Vec<Lin
     lines
 }
 
-fn name_help(frame: &mut Frame<'_>, area: Rect) {
+fn render_name_help(frame: &mut Frame<'_>, area: Rect) {
     let help_info = [
         vec![
             Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
@@ -408,12 +460,12 @@ fn name_help(frame: &mut Frame<'_>, area: Rect) {
             Span::raw(": Save"),
         ],
     ];
-    let lines = generic_help_spans(&help_info, area);
+    let lines = create_help_spans(&help_info, area);
     let help_paragraph = Paragraph::new(lines).style(Style::default());
     frame.render_widget(help_paragraph, area);
 }
 
-fn profiles_help(frame: &mut Frame, area: Rect) {
+fn render_profiles_help(frame: &mut Frame, area: Rect) {
     let help_info = [
         vec![
             Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
@@ -438,12 +490,12 @@ fn profiles_help(frame: &mut Frame, area: Rect) {
             Span::raw(": Save"),
         ],
     ];
-    let lines = generic_help_spans(&help_info, area);
+    let lines = create_help_spans(&help_info, area);
     let help_paragraph = Paragraph::new(lines).style(Style::default());
     frame.render_widget(help_paragraph, area);
 }
 
-fn variables_help(frame: &mut Frame, app: &App, area: Rect) {
+fn render_variables_help(frame: &mut Frame, app: &App, area: Rect) {
     let add_new = &app.add_new_component;
     let help_info = if add_new.is_editing_variable {
         vec![
@@ -492,7 +544,7 @@ fn variables_help(frame: &mut Frame, app: &App, area: Rect) {
             ],
         ]
     };
-    let lines = generic_help_spans(&help_info, area);
+    let lines = create_help_spans(&help_info, area);
     let help_paragraph = Paragraph::new(lines).style(Style::default());
     frame.render_widget(help_paragraph, area);
 }

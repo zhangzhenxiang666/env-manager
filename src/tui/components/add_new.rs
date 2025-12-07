@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::tui::utils::Input;
 
-pub const MAX_HEIGHT: usize = 3;
+pub const MAX_HEIGHT: usize = 4;
 pub const MAX_VARIABLES_HEIGHT: usize = 8;
 
 #[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]

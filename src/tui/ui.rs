@@ -18,7 +18,7 @@ pub fn ui(frame: &mut Frame<'_>, app: &App) {
     header::render(frame, layout[0], app);
     main_left::render(frame, main_windown[0], app);
     main_right::render(frame, main_windown[1], app);
-    bottom::render(frame, layout[2], &app.state);
+    bottom::render(frame, layout[2], app);
 
     match app.state {
         AppState::ConfirmDelete => {
