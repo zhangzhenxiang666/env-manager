@@ -4,14 +4,14 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent};
 pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Error>> {
     let list_component = &mut app.list_component;
 
-    if list_component.in_search_mode {
+    if list_component.is_searching() {
         if key
             .modifiers
             .contains(ratatui::crossterm::event::KeyModifiers::CONTROL)
         {
             match key.code {
                 KeyCode::Char('d') => {
-                    if !list_component.get_filtered_profiles().is_empty() {
+                    if !list_component.filtered_profiles().is_empty() {
                         app.state = AppState::ConfirmDelete;
                     }
                 }
@@ -31,46 +31,35 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
                 list_component.exit_search_mode();
             }
             KeyCode::Char(c) => {
-                list_component.search_input.enter_char(c);
-                // Reset selection to top when search changes, or keep valid relative?
-                // Usually reseting to 0 is safer as the list changes completely.
-                list_component.selected_index = 0;
+                list_component.search_input_mut().enter_char(c);
+                list_component.set_selected_index(0);
             }
             KeyCode::Backspace => {
-                list_component.search_input.delete_char();
-                list_component.selected_index = 0;
+                list_component.search_input_mut().delete_char();
+                list_component.set_selected_index(0);
             }
             KeyCode::Left => {
-                list_component.search_input.move_cursor_left();
+                list_component.search_input_mut().move_cursor_left();
             }
             KeyCode::Right => {
-                list_component.search_input.move_cursor_right();
+                list_component.search_input_mut().move_cursor_right();
             }
             KeyCode::Down => {
-                // Navigation within filtered list
                 list_component.next();
             }
             KeyCode::Up => {
-                // Navigation within filtered list
                 list_component.previous();
             }
             KeyCode::Enter => {
-                // Allow entering Edit mode from search mode
-                if !list_component.get_filtered_profiles().is_empty() {
-                    let filtered = list_component.get_filtered_profiles();
-                    let name = filtered[list_component.selected_index].clone();
+                if let Some(name) = list_component.current_profile() {
+                    let name = name.to_string();
                     app.start_editing(&name);
                 }
             }
             KeyCode::F(2) => {
-                let filtered = list_component.get_filtered_profiles();
-                if !filtered.is_empty() {
-                    let current_name = filtered[list_component.selected_index].clone();
+                if list_component.current_profile().is_some() {
                     app.state = AppState::Rename;
-                    list_component.rename_input.text = current_name.clone();
-                    list_component.rename_input.cursor_position = current_name.len();
-                    list_component.rename_input.is_valid = true;
-                    list_component.rename_input.error_message = None;
+                    list_component.start_rename();
                 }
             }
             _ => {}
@@ -81,9 +70,7 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
                 app.shutdown = true;
             }
             KeyCode::Char('/') => {
-                list_component.in_search_mode = true;
-                list_component.search_input.reset();
-                list_component.selected_index = 0;
+                list_component.enter_search_mode();
             }
             KeyCode::Char('j') | KeyCode::Down => {
                 app.next();
@@ -92,8 +79,8 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
                 app.previous();
             }
             KeyCode::Enter => {
-                if !list_component.profile_names.is_empty() {
-                    let name = list_component.profile_names[list_component.selected_index].clone();
+                if let Some(name) = list_component.current_profile() {
+                    let name = name.to_string();
                     app.start_editing(&name);
                 }
             }
@@ -104,7 +91,7 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
                 app.save_all()?;
             }
             KeyCode::Char('d') => {
-                if !list_component.profile_names.is_empty() {
+                if list_component.current_profile().is_some() {
                     app.state = AppState::ConfirmDelete;
                 }
             }
@@ -113,14 +100,9 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
                 app.add_new_component.reset();
             }
             KeyCode::F(2) => {
-                if !list_component.profile_names.is_empty() {
-                    let current_name =
-                        list_component.profile_names[list_component.selected_index].clone();
+                if list_component.current_profile().is_some() {
                     app.state = AppState::Rename;
-                    list_component.rename_input.text = current_name.clone();
-                    list_component.rename_input.cursor_position = current_name.len();
-                    list_component.rename_input.is_valid = true;
-                    list_component.rename_input.error_message = None;
+                    list_component.start_rename();
                 }
             }
             _ => {}

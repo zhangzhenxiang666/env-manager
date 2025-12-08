@@ -31,8 +31,8 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
 
     let text_area = v_centered_layout[1];
 
-    let selected_name = &app.list_component.profile_names[app.list_component.selected_index];
-    let text = format!("Are you sure you want to delete '{selected_name}'? (y/n)");
+    let name = &app.list_component.all_profiles()[app.list_component.selected_index()];
+    let text = format!("Are you sure you want to delete '{name}'? (y/n)");
     let main_paragraph = Paragraph::new(text)
         .alignment(Alignment::Center)
         .wrap(ratatui::widgets::Wrap { trim: false });

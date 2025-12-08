@@ -1,11 +1,12 @@
 use ratatui::{
     Frame,
     layout::Rect,
+    style::{Color, Style},
     text::{Line, Span, Text},
 };
 
 use crate::tui::{
-    app::AppState::{self, AddNew, List},
+    app::AppState::{self, List},
     theme::Theme,
 };
 
@@ -18,7 +19,6 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
 
     match app.state {
         List => list_state(frame, area, app),
-        AddNew => list_state(frame, area, app),
         AppState::Edit => edit_state(frame, area, app),
         AppState::Rename => rename_state(frame, area),
         _ => {}
@@ -27,28 +27,43 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
 }
 
 fn list_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
-    let help_text = if app.list_component.in_search_mode {
+    let help_text = if app.list_component.is_searching() {
         vec![
-            Span::raw("Esc: Exit Search"),
-            Span::raw("  Enter: Edit"),
-            Span::raw("  ↑/↓: Navigate"),
-            Span::raw("  F2: Rename"),
-            Span::raw("  ^D: Delete"),
-            Span::raw("  ^S: Save"),
-            Span::raw("  ^W: Save All"),
+            Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
+            Span::raw(": Exit Search  "),
+            Span::styled("Enter", Style::default().fg(Color::Rgb(106, 255, 160))),
+            Span::raw(": Edit  "),
+            Span::styled("↑↓", Style::default().fg(Color::Rgb(255, 138, 199))),
+            Span::raw(": Navigate  "),
+            Span::styled("F2", Style::default().fg(Color::LightYellow)),
+            Span::raw(": Rename  "),
+            Span::styled("^D", Style::default().fg(Color::LightRed)),
+            Span::raw(": Delete  "),
+            Span::styled("^S", Style::default().fg(Color::LightBlue)),
+            Span::raw(": Save  "),
+            Span::styled("^W", Style::default().fg(Color::LightCyan)),
+            Span::raw(": Save All"),
         ]
     } else {
         vec![
-            Span::raw("Esc: Close"),
-            Span::raw("  Enter: Edit"),
-            Span::raw("  K/↑: Up"),
-            Span::raw("  J/↓: Down"),
-            Span::raw("  N: New"),
-            Span::raw("  F2: Rename"),
-            Span::raw("  D: Delete"),
-            Span::raw("  S: Save Selected"),
-            Span::raw("  W: Save All"),
-            Span::raw("  /:Search"),
+            Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
+            Span::raw(": Close  "),
+            Span::styled("Enter", Style::default().fg(Color::Rgb(106, 255, 160))),
+            Span::raw(": Edit  "),
+            Span::styled("↑↓", Style::default().fg(Color::Rgb(255, 138, 199))),
+            Span::raw(": Navigate  "),
+            Span::styled("N", Style::default().fg(Color::LightGreen)),
+            Span::raw(": New  "),
+            Span::styled("F2", Style::default().fg(Color::LightYellow)),
+            Span::raw(": Rename  "),
+            Span::styled("D", Style::default().fg(Color::LightRed)),
+            Span::raw(": Delete  "),
+            Span::styled("S", Style::default().fg(Color::LightBlue)),
+            Span::raw(": Save Selected  "),
+            Span::styled("W", Style::default().fg(Color::LightCyan)),
+            Span::raw(": Save All  "),
+            Span::styled("/", Style::default().fg(Color::LightMagenta)),
+            Span::raw(": Search"),
         ]
     };
 
@@ -61,8 +76,10 @@ fn list_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
 
 fn rename_state(frame: &mut Frame<'_>, area: Rect) {
     let help = Text::from(Line::from(vec![
-        Span::raw("Esc: Cancel"),
-        Span::raw("  Enter: Confirm"),
+        Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
+        Span::raw(": Cancel  "),
+        Span::styled("Enter", Style::default().fg(Color::Rgb(106, 255, 160))),
+        Span::raw(": Confirm"),
     ]))
     .left_aligned()
     .style(Theme::new().text_dim());
@@ -73,39 +90,54 @@ fn rename_state(frame: &mut Frame<'_>, area: Rect) {
 fn edit_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
     use crate::tui::components::edit::{EditFocus, EditVariableFocus};
 
-    let edit = &app.edit_component;
-
-    let help_text = if edit.is_editing_variable {
+    let help_text = if app.edit_component.is_editing() {
         // Editing popup is active - show editing-specific help
-        match edit.variable_column_focus {
+        match app.edit_component.variable_column_focus() {
             EditVariableFocus::Key => vec![
-                Span::raw("Esc: Cancel"),
-                Span::raw("  Enter: Confirm"),
-                Span::raw("  Tab:  Switch Field"),
+                Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
+                Span::raw(": Cancel  "),
+                Span::styled("Enter", Style::default().fg(Color::Rgb(106, 255, 160))),
+                Span::raw(": Confirm  "),
+                Span::styled("Tab", Style::default().fg(Color::Rgb(130, 170, 255))),
+                Span::raw(": Switch Field"),
             ],
             EditVariableFocus::Value => vec![
-                Span::raw("Esc: Cancel"),
-                Span::raw("  Enter: Confirm"),
-                Span::raw("  Tab:  Switch Field"),
+                Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
+                Span::raw(": Cancel  "),
+                Span::styled("Enter", Style::default().fg(Color::Rgb(106, 255, 160))),
+                Span::raw(": Confirm  "),
+                Span::styled("Tab", Style::default().fg(Color::Rgb(130, 170, 255))),
+                Span::raw(": Switch Field"),
             ],
         }
     } else {
         // Navigation mode - show section-specific help
-        match edit.focus {
+        match app.edit_component.current_focus() {
             EditFocus::Profiles => vec![
-                Span::raw("Esc: Back (Mem Save)"),
-                Span::raw("  Tab: Focus"),
-                Span::raw("  ↑/↓: Navigate"),
-                Span::raw("  N: Add Dep"),
-                Span::raw("  D: Del Dep"),
+                Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
+                Span::raw(": Back (Mem Save)  "),
+                Span::styled("Tab", Style::default().fg(Color::Rgb(130, 170, 255))),
+                Span::raw(": Focus  "),
+                Span::styled("↑/↓", Style::default().fg(Color::Rgb(255, 138, 199))),
+                Span::raw(": Navigate  "),
+                Span::styled("N", Style::default().fg(Color::LightGreen)),
+                Span::raw(": Add Dep  "),
+                Span::styled("D", Style::default().fg(Color::LightRed)),
+                Span::raw(": Del Dep"),
             ],
             EditFocus::Variables => vec![
-                Span::raw("Esc: Back (Mem Save)"),
-                Span::raw("  Tab: Focus"),
-                Span::raw("  ↑↓←→ : Navigate"),
-                Span::raw("  A: Add Var"),
-                Span::raw("  E: Edit"),
-                Span::raw("  D: Del Var"),
+                Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
+                Span::raw(": Back (Mem Save)  "),
+                Span::styled("Tab", Style::default().fg(Color::Rgb(130, 170, 255))),
+                Span::raw(": Focus  "),
+                Span::styled("↑↓←→", Style::default().fg(Color::Rgb(255, 138, 199))),
+                Span::raw(": Navigate  "),
+                Span::styled("A", Style::default().fg(Color::LightYellow)),
+                Span::raw(": Add Var  "),
+                Span::styled("E", Style::default().fg(Color::LightBlue)),
+                Span::raw(": Edit  "),
+                Span::styled("D", Style::default().fg(Color::LightRed)),
+                Span::raw(": Del Var"),
             ],
         }
     };

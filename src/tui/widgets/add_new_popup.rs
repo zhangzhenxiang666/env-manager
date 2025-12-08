@@ -1,6 +1,4 @@
-use crate::tui::components::add_new::{
-    AddNewComponent, AddNewFocus, AddNewVariableFocus, MAX_HEIGHT, MAX_VARIABLES_HEIGHT,
-};
+use crate::tui::components::add_new::{AddNewComponent, AddNewFocus, AddNewVariableFocus};
 use crate::tui::{app::App, theme::Theme, utils, utils::Input};
 use ratatui::{
     layout::{Constraint, Layout},
@@ -32,9 +30,9 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     frame.render_widget(popup_block, area);
 
     let layout = Layout::vertical([
-        Constraint::Length(3),                     // Name section
-        Constraint::Length(2 + MAX_HEIGHT as u16), // Profiles section
-        Constraint::Length(12), // Variables section (8 items + 2 header + 2 border)
+        Constraint::Length(3),  // Name section
+        Constraint::Length(8),  // Profiles section (flexible, will use available space)
+        Constraint::Length(12), // Variables section
         Constraint::Min(0),     // Spacer
         Constraint::Length(2),  // Help section
     ])
@@ -57,9 +55,9 @@ fn render_name_section(
     area: Rect,
     theme: &Theme,
 ) {
-    let is_focused = add_new.focus == AddNewFocus::Name;
+    let is_focused = add_new.current_focus() == AddNewFocus::Name;
 
-    let border_style = if !add_new.name_input.is_valid {
+    let border_style = if !add_new.name_input().is_valid {
         theme.text_error()
     } else if is_focused {
         theme.block_active()
@@ -72,8 +70,8 @@ fn render_name_section(
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    if !add_new.name_input.is_valid {
-        if let Some(err) = &add_new.name_input.error_message {
+    if !add_new.name_input().is_valid {
+        if let Some(err) = &add_new.name_input().error_message {
             input_block = input_block.title_bottom(
                 Line::from(err.as_str())
                     .style(theme.text_error())
@@ -85,8 +83,8 @@ fn render_name_section(
     let text_input_rect = input_block.inner(area);
     frame.render_widget(input_block, area);
 
-    let input_text = &add_new.name_input.text;
-    let cursor_char_pos = add_new.name_input.cursor_position;
+    let input_text = &add_new.name_input().text;
+    let cursor_char_pos = add_new.name_input().cursor_position;
 
     // Calculate scroll offset for horizontal scrolling
     let prefix_width = input_text
@@ -122,22 +120,24 @@ fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &The
     let add_new = &app.add_new_component;
     let available_profiles: Vec<_> = app
         .list_component
-        .profile_names
+        .all_profiles()
         .iter()
-        .filter(|name| **name != add_new.name_input.text)
+        .filter(|name| **name != add_new.name_input().text)
         .collect();
     let total_profiles = available_profiles.len();
-    let is_focused = add_new.focus == AddNewFocus::Profiles;
+    let is_focused = add_new.current_focus() == AddNewFocus::Profiles;
 
-    let left_title = Line::from(format!(
-        "Inherit Profiles ({}/{})",
-        add_new.profiles_selection_index.saturating_add(1),
-        total_profiles,
-    ))
-    .left_aligned();
+    let current_idx = if add_new.profiles_selection_index() >= available_profiles.len() {
+        0
+    } else {
+        add_new.profiles_selection_index() + 1
+    };
+    let profiles_title = format!("Inherit Profiles ({}/{})", current_idx, total_profiles);
+
+    let left_title = Line::from(profiles_title).left_aligned();
 
     let right_title =
-        Line::from(format!("Selected: {}", add_new.added_profiles.len())).right_aligned();
+        Line::from(format!("Selected: {}", add_new.added_profiles().len())).right_aligned();
 
     let border_style = if is_focused {
         theme.block_active()
@@ -151,12 +151,19 @@ fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &The
         .borders(Borders::ALL)
         .border_style(border_style);
 
+    // Calculate actual visible height for profiles
+    let profiles_inner_height = area.height.saturating_sub(2) as usize; // Remove borders
+    let actual_visible_profiles = profiles_inner_height.max(1);
+
+    // Calculate scroll offset based on actual viewport
+    let render_profile_scroll = add_new.calculate_profile_scroll_offset(actual_visible_profiles);
+
     let list_items: Vec<ListItem> = available_profiles
         .iter()
-        .skip(add_new.profiles_scroll_offset)
-        .take(MAX_HEIGHT)
+        .skip(render_profile_scroll)
+        .take(actual_visible_profiles)
         .map(|name| {
-            let is_selected = add_new.added_profiles.contains(*name);
+            let is_selected = add_new.is_profile_added(*name);
             let prefix = if is_selected { "[✔] " } else { "[ ] " };
             ListItem::new(format!("{prefix}{name}"))
         })
@@ -170,21 +177,21 @@ fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &The
     let mut list_state = ListState::default();
     if is_focused && !available_profiles.is_empty() {
         list_state.select(Some(
-            add_new.profiles_selection_index - add_new.profiles_scroll_offset,
+            add_new.profiles_selection_index() - render_profile_scroll,
         ));
     }
     frame.render_stateful_widget(results_list, area, &mut list_state);
 
     // Scrollbar
-    let scrollbar = Scrollbar::default()
-        .orientation(ScrollbarOrientation::VerticalRight)
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .symbols(ratatui::symbols::scrollbar::VERTICAL)
         .begin_symbol(None)
-        .end_symbol(None);
+        .end_symbol(None)
+        .track_symbol(Some("│"));
 
-    let mut scrollbar_state = ScrollbarState::new(total_profiles)
-        .viewport_content_length(MAX_HEIGHT)
-        .position(add_new.profiles_scroll_offset);
+    // Calculate max scroll position
+    let max_scroll = total_profiles.saturating_sub(actual_visible_profiles) + 1;
+    let mut scrollbar_state = ScrollbarState::new(max_scroll).position(render_profile_scroll);
 
     frame.render_stateful_widget(
         scrollbar,
@@ -198,19 +205,19 @@ fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &The
 
 fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Theme) {
     let add_new = &app.add_new_component;
-    let is_focused = add_new.focus == AddNewFocus::Variables;
+    let is_focused = add_new.current_focus() == AddNewFocus::Variables;
 
-    let current_index = if add_new.variables.is_empty() {
+    let current_index = if add_new.variables_count() == 0 {
         0
     } else {
-        add_new.selected_variable_index + 1
+        add_new.selected_variable_index() + 1
     };
-    let total_count = add_new.variables.len();
+    let total_count = add_new.variables_count();
 
     let left_title =
         Line::from(format!("Variables ({current_index}/{total_count})")).left_aligned();
 
-    let border_style = if is_focused && !add_new.is_editing_variable {
+    let border_style = if is_focused && !add_new.is_editing() {
         theme.block_active()
     } else {
         theme.block_inactive()
@@ -226,14 +233,14 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
         .bottom_margin(1);
 
     let rows: Vec<Row> = add_new
-        .variables
+        .variables_for_rendering()
         .iter()
         .enumerate()
         .map(|(i, (key_input, value_input))| {
-            let is_row_selected = is_focused && i == add_new.selected_variable_index;
+            let is_row_selected = is_focused && i == add_new.selected_variable_index();
 
             let (key_style, value_style) = if is_row_selected {
-                match add_new.focused_column {
+                match add_new.variable_column_focus() {
                     AddNewVariableFocus::Key => (
                         theme.cell_focus(),       // Focused cell
                         theme.selection_active(), // Selected row, unfocused cell
@@ -254,9 +261,16 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
         })
         .collect();
 
-    let mut table_state = TableState::default().with_offset(add_new.variables_scroll_offset);
-    if is_focused && !add_new.variables.is_empty() {
-        table_state.select(Some(add_new.selected_variable_index));
+    // Calculate actual visible height for variables
+    let variables_inner_height = area.height.saturating_sub(2) as usize; // Remove borders
+    let actual_visible_variables = variables_inner_height.saturating_sub(2).max(1); // Subtract header
+
+    // Calculate scroll offset based on actual viewport
+    let render_variable_scroll = add_new.calculate_variable_scroll_offset(actual_visible_variables);
+
+    let mut table_state = TableState::default().with_offset(render_variable_scroll);
+    if is_focused && add_new.variables_count() > 0 {
+        table_state.select(Some(add_new.selected_variable_index()));
     }
 
     let col_widths = [Constraint::Percentage(30), Constraint::Percentage(70)];
@@ -267,15 +281,17 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
     frame.render_stateful_widget(table, area, &mut table_state);
 
     // Scrollbar
-    let scrollbar = Scrollbar::default()
-        .orientation(ScrollbarOrientation::VerticalRight)
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .symbols(ratatui::symbols::scrollbar::VERTICAL)
         .begin_symbol(None)
         .end_symbol(None);
 
-    let mut scrollbar_state = ScrollbarState::new(add_new.variables.len())
-        .viewport_content_length(MAX_VARIABLES_HEIGHT)
-        .position(add_new.variables_scroll_offset);
+    // Calculate max scroll position
+    let max_scroll = add_new
+        .variables_count()
+        .saturating_sub(actual_visible_variables)
+        + 1;
+    let mut scrollbar_state = ScrollbarState::new(max_scroll).position(render_variable_scroll);
 
     frame.render_stateful_widget(
         scrollbar,
@@ -287,15 +303,15 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
     );
 
     // Popup Input Box for editing
-    if is_focused && add_new.is_editing_variable {
+    if is_focused && add_new.is_editing() {
         if let Some(focused_input) = add_new.get_focused_variable_input() {
             let table_inner_area = variables_block.inner(area);
-            let row_index = add_new.selected_variable_index;
+            let row_index = add_new.selected_variable_index();
             // Visual row calculation might need adjustment depending on how Table handles it implicitly.
             // But since we are manually calculating overlay position, we need to know where the row is relative to the table block.
             // Table with offset N means the Nth item is at the top (after header).
 
-            let visual_row_index = row_index.saturating_sub(add_new.variables_scroll_offset);
+            let visual_row_index = row_index.saturating_sub(render_variable_scroll);
 
             // +2 for border + header_height(1) + bottom_margin(1)?
             // Default header height is 1 line. With bottom_margin(1), total header area is 2 lines.
@@ -309,7 +325,7 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
 
             let row_y = table_inner_area.y + 2 + visual_row_index as u16;
 
-            let col_index = match add_new.focused_column {
+            let col_index = match add_new.variable_column_focus() {
                 AddNewVariableFocus::Key => 0,
                 AddNewVariableFocus::Value => 1,
             };
@@ -329,7 +345,7 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
                 height: 3,
             };
 
-            let title = match add_new.focused_column {
+            let title = match add_new.variable_column_focus() {
                 AddNewVariableFocus::Key => "Edit Variable",
                 AddNewVariableFocus::Value => "Edit Value",
             };
@@ -398,7 +414,7 @@ fn render_variable_input_popup(
 }
 
 fn render_help_section(frame: &mut Frame<'_>, app: &App, area: Rect) {
-    match app.add_new_component.focus {
+    match app.add_new_component.current_focus() {
         AddNewFocus::Name => render_name_help(frame, area),
         AddNewFocus::Profiles => render_profiles_help(frame, area),
         AddNewFocus::Variables => render_variables_help(frame, app, area),
@@ -497,7 +513,7 @@ fn render_profiles_help(frame: &mut Frame, area: Rect) {
 
 fn render_variables_help(frame: &mut Frame, app: &App, area: Rect) {
     let add_new = &app.add_new_component;
-    let help_info = if add_new.is_editing_variable {
+    let help_info = if add_new.is_editing() {
         vec![
             vec![
                 Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),

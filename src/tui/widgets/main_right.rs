@@ -15,26 +15,28 @@ use crate::tui::{
 pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let theme = Theme::new();
 
-    if app.list_component.profile_names.is_empty() {
+    if app.list_component.all_profiles().is_empty() {
         render_empty_state(frame, area, &theme);
         return;
     }
 
-    let selected_name = &app.list_component.profile_names[app.list_component.selected_index];
+    // Clone the selected name to avoid borrowing issues
+    let selected_name =
+        app.list_component.all_profiles()[app.list_component.selected_index()].clone();
 
     // Check if we are in Edit mode
     if app.state == AppState::Edit {
-        render_edit_mode(frame, area, app, selected_name, &theme);
+        render_edit_mode(frame, area, app, &selected_name, &theme);
     } else {
         // View Mode
-        let profile = match app.config_manager.app_config.profiles.get(selected_name) {
+        let profile = match app.config_manager.app_config.profiles.get(&selected_name) {
             Some(p) => p,
             None => {
-                render_error_state(frame, area, selected_name, &theme);
+                render_error_state(frame, area, &selected_name, &theme);
                 return;
             }
         };
-        render_view_mode(frame, area, selected_name, profile, &theme);
+        render_view_mode(frame, area, &selected_name, profile, &theme);
     }
 }
 
@@ -145,19 +147,24 @@ fn render_edit_mode(frame: &mut Frame, area: Rect, app: &App, profile_name: &str
     let profiles_area = chunks[0];
     let variables_area = chunks[1];
 
-    let vars_focus = edit.focus == EditFocus::Variables;
-    let profiles_focus = edit.focus == EditFocus::Profiles;
+    // Calculate actual visible rows for variables area
+    // Area height - borders (2) - header row (2 with bottom_margin)
+    let variables_inner_height = variables_area.height.saturating_sub(2) as usize;
+    let actual_visible_rows = variables_inner_height.saturating_sub(2).max(1); // Subtract header
+
+    let vars_focus = edit.current_focus() == EditFocus::Variables;
+    let profiles_focus = edit.current_focus() == EditFocus::Profiles;
 
     // --- PROFILES SECTION ---
-    let current_prof_idx = if edit.profiles.is_empty() {
+    let current_prof_idx = if edit.profiles_count() == 0 {
         0
     } else {
-        edit.selected_profile_index + 1
+        edit.selected_profile_index() + 1
     };
     let profiles_title = format!(
         "Inherited Profiles ({}/{})",
         current_prof_idx,
-        edit.profiles.len()
+        edit.profiles_count()
     );
 
     let prof_border_style = if profiles_focus {
@@ -166,8 +173,15 @@ fn render_edit_mode(frame: &mut Frame, area: Rect, app: &App, profile_name: &str
         theme.block_inactive()
     };
 
+    // Calculate actual visible rows for profiles
+    let profiles_inner_height = profiles_area.height.saturating_sub(2) as usize; // Remove borders
+    let actual_visible_profiles = profiles_inner_height.max(1);
+
+    // Calculate scroll offset based on actual viewport
+    let render_profile_scroll = edit.calculate_profile_scroll_offset(actual_visible_profiles);
+
     let profile_items: Vec<ListItem> = edit
-        .profiles
+        .profiles()
         .iter()
         .map(|p| ListItem::new(p.as_str()))
         .collect();
@@ -185,20 +199,43 @@ fn render_edit_mode(frame: &mut Frame, area: Rect, app: &App, profile_name: &str
         profiles_list
     };
 
-    let mut list_state = ListState::default().with_offset(edit.profile_scroll_offset);
-    list_state.select(Some(edit.selected_profile_index));
+    let mut list_state = ListState::default().with_offset(render_profile_scroll);
+    list_state.select(Some(edit.selected_profile_index()));
 
     frame.render_stateful_widget(profiles_list, profiles_area, &mut list_state);
 
+    // Scrollbar for profiles (using imports from variables section)
+
+    let scrollbar = Scrollbar::default()
+        .orientation(ScrollbarOrientation::VerticalRight)
+        .symbols(ratatui::symbols::scrollbar::VERTICAL)
+        .begin_symbol(None)
+        .end_symbol(None);
+
+    let max_scroll = edit
+        .profiles_count()
+        .saturating_sub(actual_visible_profiles)
+        + 1;
+    let mut scrollbar_state = ScrollbarState::new(max_scroll).position(render_profile_scroll);
+
+    frame.render_stateful_widget(
+        scrollbar,
+        profiles_area.inner(Margin {
+            vertical: 1,
+            horizontal: 0,
+        }),
+        &mut scrollbar_state,
+    );
+
     // --- VARIABLES SECTION ---
-    let current_var_idx = if edit.variables.is_empty() {
+    let current_var_idx = if edit.variables_count() == 0 {
         0
     } else {
-        edit.selected_variable_index + 1
+        edit.selected_variable_index() + 1
     };
-    let vars_title = format!("Variables ({}/{})", current_var_idx, edit.variables.len());
+    let vars_title = format!("Variables ({}/{})", current_var_idx, edit.variables_count());
 
-    let vars_border_style = if vars_focus && !edit.is_editing_variable {
+    let vars_border_style = if vars_focus && !edit.is_editing() {
         theme.block_active()
     } else {
         theme.block_inactive()
@@ -213,15 +250,18 @@ fn render_edit_mode(frame: &mut Frame, area: Rect, app: &App, profile_name: &str
         .style(Style::new().add_modifier(Modifier::BOLD))
         .bottom_margin(1);
 
-    let rows: Vec<Row> = edit
-        .variables
+    let variable_rows: Vec<Row> = edit
+        .variables_for_rendering()
         .iter()
         .enumerate()
-        .map(|(i, (key_input, value_input))| {
-            let is_row_selected = vars_focus && i == edit.selected_variable_index;
+        .map(|(idx, (k, v))| {
+            let key_text = k.text.as_str();
+            let value_text = v.text.as_str();
+            let selected = idx == edit.selected_variable_index();
+            let _is_key_focused = edit.variable_column_focus() == EditVariableFocus::Key;
 
-            let (key_style, value_style) = if is_row_selected {
-                match edit.variable_column_focus {
+            let (key_style, value_style) = if selected && vars_focus {
+                match edit.variable_column_focus() {
                     EditVariableFocus::Key => (theme.cell_focus(), theme.selection_active()),
                     EditVariableFocus::Value => (theme.selection_active(), theme.cell_focus()),
                 }
@@ -230,19 +270,22 @@ fn render_edit_mode(frame: &mut Frame, area: Rect, app: &App, profile_name: &str
             };
 
             Row::new(vec![
-                Cell::from(key_input.text.as_str()).style(key_style),
-                Cell::from(value_input.text.as_str()).style(value_style),
+                Cell::from(key_text).style(key_style),
+                Cell::from(value_text).style(value_style),
             ])
         })
         .collect();
 
-    let mut table_state = TableState::default().with_offset(edit.variable_scroll_offset);
-    if vars_focus && !edit.variables.is_empty() {
-        table_state.select(Some(edit.selected_variable_index));
+    // Calculate the scroll offset to use for rendering, adjusted for actual viewport
+    let render_scroll_offset = edit.calculate_variable_scroll_offset(actual_visible_rows);
+
+    let mut table_state = TableState::default().with_offset(render_scroll_offset);
+    if vars_focus && !edit.variables_for_rendering().is_empty() {
+        table_state.select(Some(edit.selected_variable_index()));
     }
 
     let col_widths = [Constraint::Percentage(30), Constraint::Percentage(70)];
-    let table = Table::new(rows, col_widths)
+    let table = Table::new(variable_rows, col_widths)
         .header(header)
         .block(variables_block.clone());
 
@@ -258,9 +301,9 @@ fn render_edit_mode(frame: &mut Frame, area: Rect, app: &App, profile_name: &str
         .begin_symbol(None)
         .end_symbol(None);
 
-    let mut scrollbar_state = ScrollbarState::new(edit.variables.len())
-        .viewport_content_length(crate::tui::components::edit::EditComponent::MAX_VARIABLES_HEIGHT)
-        .position(edit.variable_scroll_offset);
+    // Calculate max scroll position: total items that can be scrolled
+    let max_scroll = edit.variables_count().saturating_sub(actual_visible_rows) + 1;
+    let mut scrollbar_state = ScrollbarState::new(max_scroll).position(render_scroll_offset);
 
     frame.render_stateful_widget(
         scrollbar,
@@ -271,20 +314,21 @@ fn render_edit_mode(frame: &mut Frame, area: Rect, app: &App, profile_name: &str
         &mut scrollbar_state,
     );
 
-    // Popup Input Box for editing
-    if vars_focus && edit.is_editing_variable {
-        if let Some(focused_input) = app.edit_component.get_focused_variable_input_ref() {
+    // Render variable input popup if editing
+    if edit.is_editing() {
+        if let Some(input_state) = edit.variable_input_state() {
             let table_inner_area = variables_block.inner(variables_area);
-            let row_index = edit.selected_variable_index;
 
-            let visual_row_index = row_index.saturating_sub(edit.variable_scroll_offset);
+            let vis_idx = edit
+                .selected_variable_index()
+                .saturating_sub(render_scroll_offset);
 
-            let row_y = table_inner_area.y + 2 + visual_row_index as u16;
+            // Position: table_inner_area.y + header row (2 lines) + visual row index
+            let row_y = table_inner_area.y + 2 + vis_idx as u16;
 
-            let col_index = match edit.variable_column_focus {
-                EditVariableFocus::Key => 0,
-                EditVariableFocus::Value => 1,
-            };
+            let is_key_focused = input_state.is_key_focused;
+
+            let col_index = if is_key_focused { 0 } else { 1 };
 
             let layout = Layout::horizontal(col_widths).spacing(1);
             let column_chunks = layout.split(table_inner_area);
@@ -297,18 +341,29 @@ fn render_edit_mode(frame: &mut Frame, area: Rect, app: &App, profile_name: &str
                 height: 3,
             };
 
-            let title = match edit.variable_column_focus {
-                EditVariableFocus::Key => "Edit Variable",
-                EditVariableFocus::Value => "Edit Value",
+            let title = if is_key_focused {
+                "Edit Variable"
+            } else {
+                "Edit Value"
             };
 
-            render_variable_input_popup(frame, popup_area, focused_input, title, theme);
+            // Create temporary Input for rendering
+            let temp_input = crate::tui::utils::Input {
+                text: input_state.text.to_string(),
+                cursor_position: input_state.cursor_pos,
+                is_valid: input_state.is_valid,
+                error_message: input_state.error.map(|s| s.to_string()),
+            };
+
+            render_variable_input_popup(frame, popup_area, &temp_input, title, theme);
         }
     }
 
-    // Render Select Popup if visible
-    if edit.show_select_popup {
-        crate::tui::widgets::select_popup::render(frame, &edit.select_popup);
+    // Render dependency selector if open
+    if edit.is_dependency_selector_open() {
+        if let Some(selector_state) = edit.dependency_selector_state() {
+            render_dependency_selector(frame, selector_state, theme);
+        }
     }
 }
 
@@ -370,4 +425,163 @@ fn render_variable_input_popup(
         inner_area.x + cursor_display_pos - scroll_offset,
         inner_area.y,
     ));
+}
+
+fn render_dependency_selector(
+    frame: &mut Frame,
+    selector_state: crate::tui::components::edit::DependencySelectorState,
+    theme: &Theme,
+) {
+    use ratatui::layout::Margin;
+    use ratatui::widgets::{Clear, List, ListItem, ListState};
+    use ratatui::widgets::{Scrollbar, ScrollbarOrientation, ScrollbarState};
+
+    let area = crate::tui::utils::centered_rect(60, 60, frame.area());
+    frame.render_widget(Clear, area);
+
+    // Render outer block with borders and title
+    let outer_block = Block::default()
+        .title(selector_state.title)
+        .borders(Borders::ALL)
+        .border_style(theme.block_active())
+        .border_type(ratatui::widgets::BorderType::Thick);
+
+    let inner_area = outer_block.inner(area);
+    frame.render_widget(outer_block, area);
+
+    // Split the inner area: list + help section (2 lines)
+    let chunks = Layout::vertical([
+        Constraint::Min(0),    // List area
+        Constraint::Length(2), // Help section
+    ])
+    .split(inner_area);
+
+    let list_area = chunks[0];
+    let help_area = chunks[1];
+
+    // Render list items with border
+    let items: Vec<ListItem> = selector_state
+        .options
+        .iter()
+        .enumerate()
+        .map(|(idx, name)| {
+            let selected = selector_state.selected_indices.contains(&idx);
+            let marker = if selected { "[✓] " } else { "[ ] " };
+            ListItem::new(format!("{}{}", marker, name))
+        })
+        .collect();
+
+    // Calculate current position and selected count
+    let current_pos = if selector_state.options.is_empty() {
+        0
+    } else {
+        selector_state.current_index + 1
+    };
+    let total_count = selector_state.options.len();
+    let selected_count = selector_state.selected_indices.len();
+
+    let left_title = Line::from(format!("{}/{}", current_pos, total_count)).left_aligned();
+    let right_title = Line::from(format!("Selected: {}", selected_count)).right_aligned();
+
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .title_top(left_title)
+                .title_top(right_title)
+                .borders(Borders::ALL)
+                .border_style(theme.block_inactive()),
+        )
+        .highlight_style(theme.row_selected());
+
+    let mut list_state = ListState::default();
+    list_state.select(Some(selector_state.current_index));
+
+    frame.render_stateful_widget(list, list_area, &mut list_state);
+
+    // Add scrollbar
+    let scrollbar = Scrollbar::default()
+        .orientation(ScrollbarOrientation::VerticalRight)
+        .symbols(ratatui::symbols::scrollbar::VERTICAL)
+        .begin_symbol(None)
+        .end_symbol(None);
+
+    // Calculate actual visible height (subtract borders of the list block)
+    let inner_height = list_area.height.saturating_sub(2) as usize;
+    let actual_visible = inner_height.max(1);
+    let max_scroll = selector_state.options.len().saturating_sub(actual_visible) + 1;
+
+    let mut scrollbar_state = ScrollbarState::new(max_scroll).position(
+        selector_state
+            .current_index
+            .saturating_sub(actual_visible / 2)
+            .min(max_scroll.saturating_sub(1)),
+    );
+
+    frame.render_stateful_widget(
+        scrollbar,
+        list_area.inner(Margin {
+            vertical: 1,
+            horizontal: 0,
+        }),
+        &mut scrollbar_state,
+    );
+
+    // Render help section
+    let help_info = [
+        vec![
+            Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
+            Span::raw(": Confirm"),
+        ],
+        vec![
+            Span::styled("↑/↓", Style::default().fg(Color::Rgb(255, 138, 199))),
+            Span::raw(": Navigate"),
+        ],
+        vec![
+            Span::styled("Enter", Style::default().fg(Color::LightBlue)),
+            Span::raw("/"),
+            Span::styled("Space", Style::default().fg(Color::LightBlue)),
+            Span::raw(": Toggle"),
+        ],
+    ];
+
+    let help_spans = create_selector_help_spans(&help_info, help_area);
+    let help_paragraph = Paragraph::new(help_spans).style(Style::default());
+    frame.render_widget(help_paragraph, help_area);
+}
+
+fn create_selector_help_spans<'a>(help_info: &'a [Vec<Span<'a>>], area: Rect) -> Vec<Line<'a>> {
+    let total_width = area.width as usize;
+    let mut lines: Vec<Line> = vec![];
+    let mut current_line_spans: Vec<Span> = vec![];
+    let mut current_line_width = 0;
+    let max_help_lines = 2;
+
+    for info in help_info {
+        if lines.len() >= max_help_lines {
+            break;
+        }
+        let item_width: usize = info.iter().map(|span| span.width()).sum();
+        let separator_width = if !current_line_spans.is_empty() { 2 } else { 0 };
+
+        if current_line_width + separator_width + item_width > total_width
+            && !current_line_spans.is_empty()
+        {
+            if lines.len() < max_help_lines {
+                lines.push(Line::from(std::mem::take(&mut current_line_spans)));
+                current_line_width = 0;
+            } else {
+                break;
+            }
+        }
+        if !current_line_spans.is_empty() {
+            current_line_spans.push(Span::raw("  "));
+            current_line_width += 2;
+        }
+        current_line_spans.extend_from_slice(info);
+        current_line_width += item_width;
+    }
+    if !current_line_spans.is_empty() && lines.len() < max_help_lines {
+        lines.push(Line::from(current_line_spans));
+    }
+    lines
 }

@@ -10,7 +10,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::collections::HashMap;
 
 pub fn handle(app: &mut App, key: KeyEvent) {
-    if app.add_new_component.is_editing_variable {
+    if app.add_new_component.is_editing() {
         handle_editing_mode(app, key);
     } else {
         handle_navigation_mode(app, key);
@@ -31,13 +31,15 @@ fn handle_editing_enter(app: &mut App) {
     let add_new = &mut app.add_new_component;
 
     // Validate before confirming if editing Key
-    if add_new.focused_column == AddNewVariableFocus::Key && !validate_variable_key_input(add_new) {
+    if add_new.variable_column_focus() == AddNewVariableFocus::Key
+        && !validate_variable_key_input(add_new)
+    {
         return;
     }
 
     add_new.confirm_editing_variable();
 
-    if add_new.focused_column == AddNewVariableFocus::Key {
+    if add_new.variable_column_focus() == AddNewVariableFocus::Key {
         add_new.switch_variable_column();
         add_new.start_editing_variable();
     }
@@ -47,7 +49,9 @@ fn handle_editing_tab(app: &mut App) {
     let add_new = &mut app.add_new_component;
 
     // Validate before switching if currently on Key
-    if add_new.focused_column == AddNewVariableFocus::Key && !validate_variable_key_input(add_new) {
+    if add_new.variable_column_focus() == AddNewVariableFocus::Key
+        && !validate_variable_key_input(add_new)
+    {
         return;
     }
 
@@ -119,47 +123,50 @@ fn handle_navigation_mode(app: &mut App, key: KeyEvent) {
         } => attempt_switch_focus(app, false),
 
         // Context Specific
-        _ => dispatch_context_key(app, key.code),
+        _ => dispatch_context_key(app, key),
     }
 }
 
 fn save_profile(app: &mut App) {
     validate_name(app);
-    if !app.add_new_component.name_input.is_valid {
+    if !app.add_new_component.name_input().is_valid {
         return;
     }
 
     let add_new = &mut app.add_new_component;
-    let new_name = add_new.name_input.text.trim().to_string();
-
-    let mut new_profile = Profile {
-        profiles: add_new.added_profiles.iter().cloned().collect(),
-        ..Default::default()
-    };
+    let new_name = add_new.name_input().text.trim().to_string();
 
     let variables_map: HashMap<String, String> = add_new
-        .variables
+        .variables_for_rendering()
         .iter()
         .map(|(k, v)| (k.text.clone(), v.text.clone()))
         .filter(|(k, _)| !k.is_empty())
         .collect();
-    new_profile.variables = variables_map;
+
+    let new_profile = Profile {
+        profiles: add_new.added_profiles().iter().cloned().collect(),
+        variables: variables_map,
+        ..Default::default()
+    };
 
     app.config_manager
         .app_config
         .profiles
         .insert(new_name.clone(), new_profile);
-    app.list_component.dirty_profiles.insert(new_name.clone());
+    app.list_component.mark_dirty(new_name.clone());
 
-    app.list_component.profile_names.push(new_name.clone());
-    app.list_component.profile_names.sort();
+    let mut profiles = app.list_component.all_profiles().to_vec();
+    profiles.push(new_name.clone());
+    profiles.sort();
+    app.list_component.update_profiles(profiles);
+
     if let Some(index) = app
         .list_component
-        .profile_names
+        .all_profiles()
         .iter()
         .position(|r| r == &new_name)
     {
-        app.list_component.selected_index = index;
+        app.list_component.set_selected_index(index);
     }
 
     app.status_message = Some(format!("Profile '{new_name}' created."));
@@ -174,43 +181,51 @@ fn close_popup(app: &mut App) {
 
 fn attempt_switch_focus(app: &mut App, forward: bool) {
     // If focused on Name, validate before leaving
-    if app.add_new_component.focus == AddNewFocus::Name {
+    if app.add_new_component.current_focus() == AddNewFocus::Name {
         validate_name(app);
-        if !app.add_new_component.name_input.is_valid {
+        if !app.add_new_component.name_input().is_valid {
             return;
         }
     }
     app.add_new_component.switch_focus(forward);
 }
 
-fn dispatch_context_key(app: &mut App, key_code: KeyCode) {
-    let focus = app.add_new_component.focus;
-    match focus {
-        AddNewFocus::Name => name(app, key_code),
-        AddNewFocus::Profiles => profiles(app, key_code),
-        AddNewFocus::Variables => variables(app, key_code),
-    }
-}
+fn dispatch_context_key(app: &mut App, key: KeyEvent) {
+    let focus = app.add_new_component.current_focus();
 
-fn name(app: &mut App, key_code: KeyCode) {
-    match key_code {
-        KeyCode::Char(c) => {
-            app.add_new_component.name_input.enter_char(c);
+    match key.code {
+        KeyCode::Esc => {
+            app.add_new_component.reset();
+            app.state = AppState::List;
+        }
+        KeyCode::Char(c) if focus == AddNewFocus::Name => {
+            app.add_new_component.name_input_mut().enter_char(c);
             validate_name(app);
         }
-        KeyCode::Backspace => {
-            app.add_new_component.name_input.delete_char();
+        KeyCode::Backspace if focus == AddNewFocus::Name => {
+            app.add_new_component.name_input_mut().delete_char();
             validate_name(app);
         }
-        KeyCode::Left => app.add_new_component.name_input.move_cursor_left(),
-        KeyCode::Right => app.add_new_component.name_input.move_cursor_right(),
-        KeyCode::Enter => {
+        KeyCode::Left if focus == AddNewFocus::Name => {
+            app.add_new_component.name_input_mut().move_cursor_left()
+        }
+        KeyCode::Right if focus == AddNewFocus::Name => {
+            app.add_new_component.name_input_mut().move_cursor_right()
+        }
+        KeyCode::Enter if focus == AddNewFocus::Name => {
             validate_name(app);
-            if app.add_new_component.name_input.is_valid {
+            if app.add_new_component.name_input().is_valid {
                 app.add_new_component.switch_focus(true);
             }
         }
-        _ => {}
+        _ => {
+            // Dispatch to specific handlers for Profiles and Variables
+            match focus {
+                AddNewFocus::Profiles => profiles(app, key.code),
+                AddNewFocus::Variables => variables(app, key.code),
+                _ => {}
+            }
+        }
     }
 }
 
@@ -218,9 +233,9 @@ fn profiles(app: &mut App, key_code: KeyCode) {
     let add_new = &mut app.add_new_component;
     let available_profiles: Vec<_> = app
         .list_component
-        .profile_names
+        .all_profiles()
         .iter()
-        .filter(|name| **name != add_new.name_input.text)
+        .filter(|name| **name != add_new.name_input().text)
         .collect();
     let count = available_profiles.len();
 
@@ -228,7 +243,8 @@ fn profiles(app: &mut App, key_code: KeyCode) {
         KeyCode::Up | KeyCode::Char('k') => add_new.select_previous_profile(count),
         KeyCode::Down | KeyCode::Char('j') => add_new.select_next_profile(count),
         KeyCode::Enter | KeyCode::Char(' ') => {
-            if let Some(selected_name) = available_profiles.get(add_new.profiles_selection_index) {
+            if let Some(selected_name) = available_profiles.get(add_new.profiles_selection_index())
+            {
                 add_new.toggle_current_profile(selected_name.to_string());
             }
         }
@@ -253,19 +269,20 @@ fn variables(app: &mut App, key_code: KeyCode) {
 // --- Validators ---
 
 fn validate_name(app: &mut App) {
-    let add_new = &mut app.add_new_component;
-    let new_name = add_new.name_input.text.trim();
+    let input = app.add_new_component.name_input_mut();
+    input.is_valid = true;
+    input.error_message = None;
 
-    if let Err(e) = utils::validate_non_empty(new_name) {
-        add_new.name_input.set_error_message(&format!("Name {e}"));
+    if let Err(e) = utils::validate_non_empty(&input.text) {
+        input.set_error_message(&format!("Name {e}"));
         return;
     }
-    if let Err(e) = utils::validate_no_spaces(new_name) {
-        add_new.name_input.set_error_message(&format!("Name {e}"));
+    if let Err(e) = utils::validate_no_spaces(&input.text) {
+        input.set_error_message(&format!("Name {e}"));
         return;
     }
-    if let Err(e) = utils::validate_starts_with_non_digit(new_name) {
-        add_new.name_input.set_error_message(&format!("Name {e}"));
+    if let Err(e) = utils::validate_starts_with_non_digit(&input.text) {
+        input.set_error_message(&format!("Name {e}"));
         return;
     }
 
@@ -273,15 +290,13 @@ fn validate_name(app: &mut App) {
         .config_manager
         .app_config
         .profiles
-        .contains_key(new_name)
+        .contains_key(&input.text)
     {
-        add_new
-            .name_input
-            .set_error_message("Profile already exists");
+        input.set_error_message("Profile already exists");
         return;
     }
-    add_new.name_input.is_valid = true;
-    add_new.name_input.error_message = None;
+    input.is_valid = true;
+    input.error_message = None;
 }
 
 /// Validates the currently focused variable input (if it's a Key).
@@ -308,11 +323,6 @@ fn validate_variable_key_input(add_new: &mut AddNewComponent) -> bool {
 }
 
 fn should_delete_variable_row(add_new: &AddNewComponent) -> bool {
-    if let Some((key_input, _)) = add_new.variables.get(add_new.selected_variable_index) {
-        utils::validate_non_empty(&key_input.text).is_err()
-            || utils::validate_no_spaces(&key_input.text).is_err()
-            || utils::validate_starts_with_non_digit(&key_input.text).is_err()
-    } else {
-        false
-    }
+    let idx = add_new.selected_variable_index();
+    !add_new.is_variable_valid(idx)
 }

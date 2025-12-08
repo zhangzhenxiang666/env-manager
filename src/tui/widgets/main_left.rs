@@ -13,11 +13,11 @@ use crate::tui::{
 };
 
 pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    let profiles = app.list_component.get_filtered_profiles();
+    let profiles = app.list_component.filtered_profiles();
     let items: Vec<ListItem> = profiles
         .iter()
         .map(|name| {
-            let display_text = if app.list_component.dirty_profiles.contains(name) {
+            let display_text = if app.list_component.is_dirty(name) {
                 vec![
                     Span::from(name.as_str()),
                     Span::styled("*", Theme::new().text_highlight()),
@@ -30,14 +30,14 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .collect();
 
     let total_items = items.len();
-    let unsaved_count = app.list_component.dirty_profiles.len();
+    let unsaved_count = app.list_component.unsaved_count();
 
     let title = if items.is_empty() {
         Line::from("Profile List (0/0)").left_aligned()
     } else {
         Line::from(format!(
             "Profile List ({}/{})",
-            app.list_component.selected_index + 1,
+            app.list_component.selected_index() + 1,
             total_items
         ))
         .left_aligned()
@@ -68,15 +68,15 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
     list = list.block(block);
 
     let mut list_state = ListState::default();
-    if !app.list_component.profile_names.is_empty() {
-        list_state.select(Some(app.list_component.selected_index));
+    if !app.list_component.all_profiles().is_empty() {
+        list_state.select(Some(app.list_component.selected_index()));
     }
 
     frame.render_stateful_widget(list, area, &mut list_state);
 
     // Render Rename Overlay
     if app.state == AppState::Rename {
-        let selected = app.list_component.selected_index;
+        let selected = app.list_component.selected_index();
         let offset = list_state.offset();
 
         // Calculate visual position
@@ -88,7 +88,7 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
             let list_inner_y = area.y + 1; // Top border
             let item_y = list_inner_y + visual_index as u16;
 
-            let input = &app.list_component.rename_input;
+            let input = app.list_component.rename_input();
             // Expand width slightly if possible or keep inside?
             // "area" includes borders of main_left.
             // Let's use full width of main_left minus 2 for borders?

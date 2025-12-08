@@ -44,7 +44,7 @@ impl App {
         profile_names.sort();
 
         let mut list_component = ListComponent::new();
-        list_component.profile_names = profile_names;
+        list_component.update_profiles(profile_names);
 
         App {
             config_manager,
@@ -67,14 +67,15 @@ impl App {
     }
 
     pub fn save_selected(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        if self.list_component.profile_names.is_empty() {
-            return Ok(());
-        }
-        let name = &self.list_component.profile_names[self.list_component.selected_index];
-        if self.list_component.dirty_profiles.contains(name) {
-            if let Some(profile) = self.config_manager.app_config.profiles.get(name) {
-                loader::write_profile(&self.config_manager.base_path, name, profile)?;
-                self.list_component.dirty_profiles.remove(name);
+        let name = match self.list_component.current_profile() {
+            Some(n) => n.to_string(),
+            None => return Ok(()),
+        };
+
+        if self.list_component.is_dirty(&name) {
+            if let Some(profile) = self.config_manager.app_config.profiles.get(&name) {
+                loader::write_profile(&self.config_manager.base_path, &name, profile)?;
+                self.list_component.clear_dirty(&name);
             }
         }
 
@@ -86,7 +87,7 @@ impl App {
         // simple linear search is fine for small number of pending deletes
         for (old, new_opt) in self.pending_deletes.iter() {
             if let Some(new_name) = new_opt {
-                if new_name == name {
+                if new_name == &name {
                     to_delete.push(old.clone());
                 }
             }
@@ -120,11 +121,11 @@ impl App {
 
     pub fn save_all(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // Clone the set to avoid borrowing issues while iterating and modifying
-        let dirty_names: Vec<String> = self.list_component.dirty_profiles.iter().cloned().collect();
+        let dirty_names: Vec<String> = self.list_component.dirty_profiles_iter().cloned().collect();
         for name in dirty_names {
             if let Some(profile) = self.config_manager.app_config.profiles.get(&name) {
                 loader::write_profile(&self.config_manager.base_path, &name, profile)?;
-                self.list_component.dirty_profiles.remove(&name);
+                self.list_component.clear_dirty(&name);
             }
         }
 
@@ -140,11 +141,10 @@ impl App {
     }
 
     pub fn rename_profile(&mut self, new_name: String) -> Result<(), Box<dyn std::error::Error>> {
-        if self.list_component.profile_names.is_empty() {
-            return Ok(());
-        }
-        let old_name =
-            self.list_component.profile_names[self.list_component.selected_index].clone();
+        let old_name = match self.list_component.current_profile() {
+            Some(n) => n.to_string(),
+            None => return Ok(()),
+        };
 
         if old_name == new_name {
             return Ok(());
@@ -176,30 +176,34 @@ impl App {
 
         // 4. Mark affected profiles as dirty
         for name in affected_profiles {
-            self.list_component.dirty_profiles.insert(name);
+            self.list_component.mark_dirty(name);
         }
 
         // 5. Mark new profile as dirty (it has a new name/location essentially)
-        self.list_component.dirty_profiles.insert(new_name.clone());
+        self.list_component.mark_dirty(new_name.clone());
         // Since we removed old_name, remove it from dirty if it was there
-        self.list_component.dirty_profiles.remove(&old_name);
+        self.list_component.clear_dirty(&old_name);
 
         // 6. Rebuild Graph
         self.config_manager.app_config.graph =
             ProfileGraph::build(&self.config_manager.app_config.profiles)?;
 
         // 7. Update List Component
-        self.list_component.profile_names[self.list_component.selected_index] = new_name.clone();
-        // Resort list
-        self.list_component.profile_names.sort();
+        let mut profiles = self.list_component.all_profiles().to_vec();
+        if let Some(pos) = profiles.iter().position(|n| n == &old_name) {
+            profiles[pos] = new_name.clone();
+        }
+        profiles.sort();
+        self.list_component.update_profiles(profiles);
+
         // Fix selected index to follow the renamed item
         if let Some(new_index) = self
             .list_component
-            .profile_names
+            .all_profiles()
             .iter()
             .position(|n| n == &new_name)
         {
-            self.list_component.selected_index = new_index;
+            self.list_component.set_selected_index(new_index);
         }
 
         self.status_message = Some(format!("Renamed '{old_name}' to '{new_name}'"));
@@ -214,12 +218,10 @@ impl App {
     }
 
     pub fn delete_selected_profile(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        if self.list_component.profile_names.is_empty() {
-            return Ok(());
-        }
-
-        let name_to_delete =
-            self.list_component.profile_names[self.list_component.selected_index].clone();
+        let name_to_delete = match self.list_component.current_profile() {
+            Some(n) => n.to_string(),
+            None => return Ok(()),
+        };
 
         // Validation
         let graph = &self.config_manager.app_config.graph;
@@ -241,9 +243,12 @@ impl App {
             }
         }
 
-        self.list_component
-            .profile_names
-            .remove(self.list_component.selected_index);
+        let mut profiles = self.list_component.all_profiles().to_vec();
+        let selected_idx = self.list_component.selected_index();
+        if selected_idx < profiles.len() {
+            profiles.remove(selected_idx);
+        }
+        self.list_component.update_profiles(profiles);
 
         // Queue for deletion (No successor)
         self.pending_deletes.insert(name_to_delete.clone(), None);
@@ -263,19 +268,19 @@ impl App {
             .remove(&name_to_delete);
 
         // Remove from dirty set if it's there
-        self.list_component.dirty_profiles.remove(&name_to_delete);
+        self.list_component.clear_dirty(&name_to_delete);
 
         // Rebuild graph
         self.config_manager.app_config.graph =
             ProfileGraph::build(&self.config_manager.app_config.profiles)?;
 
-        // Adjust selected index
-        if !self.list_component.profile_names.is_empty()
-            && self.list_component.selected_index >= self.list_component.profile_names.len()
-        {
-            self.list_component.selected_index = self.list_component.profile_names.len() - 1;
-        } else if self.list_component.profile_names.is_empty() {
-            self.list_component.selected_index = 0;
+        // Adjust selected index (update_profiles handles this now, but let's be explicit)
+        let profile_count = self.list_component.all_profiles().len();
+        let current_idx = self.list_component.selected_index();
+        if profile_count > 0 && current_idx >= profile_count {
+            self.list_component.set_selected_index(profile_count - 1);
+        } else if profile_count == 0 {
+            self.list_component.set_selected_index(0);
         }
 
         self.status_message = Some(format!("Successfully deleted '{name_to_delete}'"));

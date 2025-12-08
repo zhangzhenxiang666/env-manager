@@ -3,7 +3,7 @@ use crate::tui::utils::{validate_no_spaces, validate_non_empty, validate_starts_
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Error>> {
-    let input = &mut app.list_component.rename_input;
+    let input = app.list_component.rename_input_mut();
 
     match key.code {
         KeyCode::Char(c) => {
@@ -21,14 +21,14 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
             input.move_cursor_right();
         }
         KeyCode::Esc => {
-            input.reset();
+            app.list_component.reset_rename();
             app.state = AppState::List;
         }
         KeyCode::Enter => {
             if input.is_valid {
                 let new_name = input.text.clone();
                 app.rename_profile(new_name)?;
-                app.list_component.rename_input.reset();
+                app.list_component.reset_rename();
                 app.state = AppState::List;
             }
         }
