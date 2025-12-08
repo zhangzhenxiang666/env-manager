@@ -25,8 +25,8 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
             app.state = AppState::List;
         }
         KeyCode::Enter => {
-            if input.is_valid {
-                let new_name = input.text.clone();
+            if input.is_valid() {
+                let new_name = input.text().to_string();
                 app.rename_profile(new_name)?;
                 app.list_component.reset_rename();
                 app.state = AppState::List;
@@ -38,18 +38,17 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
 }
 
 fn validate_input(input: &mut crate::tui::utils::Input) {
-    input.is_valid = true;
-    input.error_message = None;
+    input.clear_error();
 
-    if let Err(e) = validate_non_empty(&input.text) {
+    if let Err(e) = validate_non_empty(input.text()) {
         input.set_error_message(&e);
         return;
     }
-    if let Err(e) = validate_no_spaces(&input.text) {
+    if let Err(e) = validate_no_spaces(input.text()) {
         input.set_error_message(&e);
         return;
     }
-    if let Err(e) = validate_starts_with_non_digit(&input.text) {
+    if let Err(e) = validate_starts_with_non_digit(input.text()) {
         input.set_error_message(&e);
     }
 }

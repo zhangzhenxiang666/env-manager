@@ -131,7 +131,7 @@ fn edit_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
                 Span::styled("Tab", Style::default().fg(Color::Rgb(130, 170, 255))),
                 Span::raw(": Focus  "),
                 Span::styled("↑↓←→", Style::default().fg(Color::Rgb(255, 138, 199))),
-                Span::raw(": Navigate  "),
+                Span::raw(" : Navigate  "),
                 Span::styled("A", Style::default().fg(Color::LightYellow)),
                 Span::raw(": Add Var  "),
                 Span::styled("E", Style::default().fg(Color::LightBlue)),

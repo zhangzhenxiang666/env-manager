@@ -1,17 +1,71 @@
 use ratatui::prelude::*;
 
 /// A reusable struct to manage state for a text input field, with robust unicode support.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default)]
 pub struct Input {
-    pub text: String,
-    pub cursor_position: usize,
-    pub is_valid: bool,
-    pub error_message: Option<String>,
+    text: String,
+    cursor_position: usize,
+    error_message: Option<String>,
 }
 
 impl Input {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Create an Input from its individual parts
+    pub fn from_parts(text: String, cursor_position: usize, error_message: Option<String>) -> Self {
+        Self {
+            text,
+            cursor_position,
+            error_message,
+        }
+    }
+
+    /// Create an Input from text, with cursor at end
+    pub fn with_text(text: String) -> Self {
+        let cursor_position = text.len();
+        Self {
+            text,
+            cursor_position,
+            error_message: None,
+        }
+    }
+
+    /// Check if input is valid (no error message)
+    pub fn is_valid(&self) -> bool {
+        self.error_message.is_none()
+    }
+
+    /// Get the error message if any
+    pub fn error_message(&self) -> Option<&str> {
+        self.error_message.as_deref()
+    }
+
+    /// Clear the error message
+    pub fn clear_error(&mut self) {
+        self.error_message = None;
+    }
+
+    /// Get the cursor position
+    pub fn cursor_position(&self) -> usize {
+        self.cursor_position
+    }
+
+    /// Set the cursor position
+    pub fn set_cursor_position(&mut self, position: usize) {
+        self.cursor_position = position.clamp(0, self.text.chars().count());
+    }
+
+    /// Get the text content as a string slice
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// Set the text content, moving cursor to end
+    pub fn set_text(&mut self, text: String) {
+        self.text = text;
+        self.cursor_position = self.text.len();
     }
 
     pub fn move_cursor_right(&mut self) {
@@ -51,27 +105,15 @@ impl Input {
 
     pub fn set_error_message(&mut self, error_message: &str) {
         self.error_message = Some(error_message.to_string());
-        self.is_valid = false;
     }
 
     pub fn reset(&mut self) {
         self.text.clear();
         self.cursor_position = 0;
-        self.is_valid = true;
         self.error_message = None;
     }
 }
 
-impl Default for Input {
-    fn default() -> Self {
-        Self {
-            text: String::new(),
-            cursor_position: 0,
-            is_valid: true,
-            error_message: None,
-        }
-    }
-}
 /// Helper function to create a centered rect using up certain percentage of the available rect `r`
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::vertical([
@@ -121,17 +163,26 @@ pub fn input_to_span<'a>(
 ) -> Line<'a> {
     if is_focused {
         // Simple cursor simulation: split text at cursor
-        let (left, right) = input.text.split_at(input.cursor_position);
-        // Note: Cursor rendering usually requires multiple spans or manual composition
-        // For simple usage in a Cell, we might just return the text styled.
-        // But the user probably wants to see the cursor.
-        // Since we return a single Span, we can't easily do multi-colored chars unless we return `Line`.
-        // Wait, `Cell` accepts `Line` or `Span`. Let's assume `input_to_span` returns `Line`.
-        // Accessing main_right.rs showed `Cell::from(span)`. Cell::from accepts Span or String or Text or Line.
-        // Let's change return type to Line to support cursor highlighting.
+        let (left, right) = input.text.split_at(
+            input
+                .text
+                .char_indices()
+                .nth(input.cursor_position)
+                .map(|(i, _)| i)
+                .unwrap_or(input.text.len()),
+        );
 
-        let cursor_char = if right.is_empty() { " " } else { &right[0..1] };
-        let right_rest = if right.is_empty() { "" } else { &right[1..] };
+        let cursor_char = if right.is_empty() {
+            " "
+        } else {
+            &right[..right.chars().next().unwrap().len_utf8()]
+        };
+
+        let right_rest = if right.is_empty() {
+            ""
+        } else {
+            &right[cursor_char.len()..]
+        };
 
         Line::from(vec![
             Span::raw(left.to_string()),

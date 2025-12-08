@@ -57,7 +57,7 @@ fn render_name_section(
 ) {
     let is_focused = add_new.current_focus() == AddNewFocus::Name;
 
-    let border_style = if !add_new.name_input().is_valid {
+    let border_style = if !add_new.name_input().is_valid() {
         theme.text_error()
     } else if is_focused {
         theme.block_active()
@@ -70,21 +70,18 @@ fn render_name_section(
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    if !add_new.name_input().is_valid {
-        if let Some(err) = &add_new.name_input().error_message {
-            input_block = input_block.title_bottom(
-                Line::from(err.as_str())
-                    .style(theme.text_error())
-                    .right_aligned(),
-            );
+    if !add_new.name_input().is_valid() {
+        if let Some(err) = add_new.name_input().error_message() {
+            input_block =
+                input_block.title_bottom(Line::from(err).style(theme.text_error()).right_aligned());
         }
     }
 
     let text_input_rect = input_block.inner(area);
     frame.render_widget(input_block, area);
 
-    let input_text = &add_new.name_input().text;
-    let cursor_char_pos = add_new.name_input().cursor_position;
+    let input_text = add_new.name_input().text();
+    let cursor_char_pos = add_new.name_input().cursor_position();
 
     // Calculate scroll offset for horizontal scrolling
     let prefix_width = input_text
@@ -101,7 +98,7 @@ fn render_name_section(
         0
     };
 
-    let input_paragraph = Paragraph::new(input_text.as_str())
+    let input_paragraph = Paragraph::new(input_text)
         .style(theme.text_normal())
         .scroll((0, scroll_offset));
     frame.render_widget(input_paragraph, text_input_rect);
@@ -122,7 +119,7 @@ fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &The
         .list_component
         .all_profiles()
         .iter()
-        .filter(|name| **name != add_new.name_input().text)
+        .filter(|name| **name != add_new.name_input().text())
         .collect();
     let total_profiles = available_profiles.len();
     let is_focused = add_new.current_focus() == AddNewFocus::Profiles;
@@ -132,7 +129,7 @@ fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &The
     } else {
         add_new.profiles_selection_index() + 1
     };
-    let profiles_title = format!("Inherit Profiles ({}/{})", current_idx, total_profiles);
+    let profiles_title = format!("Inherit Profiles ({current_idx}/{total_profiles})");
 
     let left_title = Line::from(profiles_title).left_aligned();
 
@@ -163,7 +160,7 @@ fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &The
         .skip(render_profile_scroll)
         .take(actual_visible_profiles)
         .map(|name| {
-            let is_selected = add_new.is_profile_added(*name);
+            let is_selected = add_new.is_profile_added(name);
             let prefix = if is_selected { "[✔] " } else { "[ ] " };
             ListItem::new(format!("{prefix}{name}"))
         })
@@ -255,8 +252,8 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
             };
 
             Row::new(vec![
-                Cell::from(key_input.text.as_str()).style(key_style),
-                Cell::from(value_input.text.as_str()).style(value_style),
+                Cell::from(key_input.text()).style(key_style),
+                Cell::from(value_input.text()).style(value_style),
             ])
         })
         .collect();
@@ -364,7 +361,7 @@ fn render_variable_input_popup(
 ) {
     frame.render_widget(Clear, area);
 
-    let border_style = if input.is_valid {
+    let border_style = if input.is_valid() {
         theme.block_active()
     } else {
         theme.text_error()
@@ -375,20 +372,16 @@ fn render_variable_input_popup(
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    if !input.is_valid {
-        if let Some(err) = &input.error_message {
-            block = block.title_bottom(
-                Line::from(err.as_str())
-                    .style(theme.text_error())
-                    .right_aligned(),
-            );
+    if !input.is_valid() {
+        if let Some(err) = input.error_message() {
+            block = block.title_bottom(Line::from(err).style(theme.text_error()).right_aligned());
         }
     }
 
     let inner_area = block.inner(area);
 
-    let text = &input.text;
-    let cursor_pos = input.cursor_position;
+    let text = input.text();
+    let cursor_pos = input.cursor_position();
 
     let prefix_width = text
         .chars()
@@ -403,7 +396,7 @@ fn render_variable_input_popup(
         0
     };
 
-    let paragraph = Paragraph::new(text.as_str()).scroll((0, scroll_offset));
+    let paragraph = Paragraph::new(text).scroll((0, scroll_offset));
 
     frame.render_widget(block, area);
     frame.render_widget(paragraph, inner_area);

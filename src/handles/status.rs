@@ -51,7 +51,7 @@ pub fn handle(args: CommandsStatusArgs) -> Result<(), Box<dyn Error>> {
             continue;
         }
 
-        let profile = config_manager.read_profile(profile_name).unwrap();
+        let profile = config_manager.get_profile(profile_name).unwrap();
         let is_last_profile = i == args.profiles.len() - 1;
         let profile_prefix = if is_last_profile {
             "└──"
@@ -128,7 +128,7 @@ fn display_profile_status(
 
         let mut profile_iter = profile.profiles.iter().peekable();
         while let Some(nested_name) = profile_iter.next() {
-            if let Some(nested_profile) = config_manager.read_profile(nested_name) {
+            if let Some(nested_profile) = config_manager.get_profile(nested_name) {
                 let is_last_nested = profile_iter.peek().is_none();
                 let nested_profile_prefix = if is_last_nested {
                     "└──"

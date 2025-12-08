@@ -71,7 +71,7 @@ impl Profile {
         //  Collect variables from all resolved profiles in order
         let mut vars = HashMap::new();
         for profile_name in all_profiles_to_load {
-            if let Some(profile) = config_manager.read_profile(&profile_name) {
+            if let Some(profile) = config_manager.get_profile(&profile_name) {
                 vars.extend(profile.variables.clone());
             } else {
                 // This should ideally not happen if resolve_dependencies works correctly

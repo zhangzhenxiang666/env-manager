@@ -1,12 +1,9 @@
 use super::event::handle_event;
 use super::ui::ui;
 use crate::config::ConfigManager;
-use crate::config::graph::ProfileGraph;
-use crate::config::loader;
 use crate::tui::components::add_new::AddNewComponent;
 use crate::tui::components::edit::EditComponent;
 use crate::tui::components::list::ListComponent;
-use daggy::Walker;
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
@@ -39,8 +36,8 @@ pub struct App {
 
 impl App {
     pub fn new(config_manager: ConfigManager) -> App {
-        let mut profile_names: Vec<String> =
-            config_manager.app_config.profiles.keys().cloned().collect();
+        let mut profile_names: Vec<String> = config_manager.list_profile_names().to_vec();
+        profile_names.sort();
         profile_names.sort();
 
         let mut list_component = ListComponent::new();
@@ -73,8 +70,8 @@ impl App {
         };
 
         if self.list_component.is_dirty(&name) {
-            if let Some(profile) = self.config_manager.app_config.profiles.get(&name) {
-                loader::write_profile(&self.config_manager.base_path, &name, profile)?;
+            if let Some(profile) = self.config_manager.get_profile(&name) {
+                self.config_manager.write_profile(&name, profile)?;
                 self.list_component.clear_dirty(&name);
             }
         }
@@ -100,7 +97,7 @@ impl App {
                 // Execute delete
                 // Check if it still exists on disk before errors? loader::delete handle it usually.
                 // We perform delete
-                loader::delete_profile_file(&self.config_manager.base_path, &del_name)?;
+                self.config_manager.delete_profile_file(&del_name)?;
 
                 // Remove from pending map
                 self.pending_deletes.remove(&del_name);
@@ -123,8 +120,8 @@ impl App {
         // Clone the set to avoid borrowing issues while iterating and modifying
         let dirty_names: Vec<String> = self.list_component.dirty_profiles_iter().cloned().collect();
         for name in dirty_names {
-            if let Some(profile) = self.config_manager.app_config.profiles.get(&name) {
-                loader::write_profile(&self.config_manager.base_path, &name, profile)?;
+            if let Some(profile) = self.config_manager.get_profile(&name) {
+                self.config_manager.write_profile(&name, profile)?;
                 self.list_component.clear_dirty(&name);
             }
         }
@@ -133,7 +130,7 @@ impl App {
         // We can just iterate keys and delete
         let all_deletes: Vec<String> = self.pending_deletes.keys().cloned().collect();
         for name in all_deletes {
-            loader::delete_profile_file(&self.config_manager.base_path, &name)?;
+            self.config_manager.delete_profile_file(&name)?;
             self.pending_deletes.remove(&name);
         }
 
@@ -151,11 +148,8 @@ impl App {
         }
 
         // 1. Update Profile Map
-        if let Some(profile) = self.config_manager.app_config.profiles.remove(&old_name) {
-            self.config_manager
-                .app_config
-                .profiles
-                .insert(new_name.clone(), profile);
+        if let Some(profile) = self.config_manager.remove_profile(&old_name) {
+            self.config_manager.add_profile(new_name.clone(), profile);
         } else {
             return Err(format!("Profile '{old_name}' not found in memory.").into());
         }
@@ -166,7 +160,7 @@ impl App {
 
         // 3. Update Dependencies (other profiles that use old_name)
         let mut affected_profiles = Vec::new();
-        for (name, profile) in self.config_manager.app_config.profiles.iter_mut() {
+        for (name, profile) in self.config_manager.profiles_iter_mut() {
             if profile.profiles.contains(&old_name) {
                 profile.profiles.remove(&old_name);
                 profile.profiles.insert(new_name.clone());
@@ -184,9 +178,9 @@ impl App {
         // Since we removed old_name, remove it from dirty if it was there
         self.list_component.clear_dirty(&old_name);
 
-        // 6. Rebuild Graph
-        self.config_manager.app_config.graph =
-            ProfileGraph::build(&self.config_manager.app_config.profiles)?;
+        // 6. Update graph incrementally (more efficient than rebuild)
+        self.config_manager
+            .rename_profile_node(&old_name, new_name.clone())?;
 
         // 7. Update List Component
         let mut profiles = self.list_component.all_profiles().to_vec();
@@ -211,7 +205,7 @@ impl App {
     }
 
     pub fn start_editing(&mut self, profile_name: &str) {
-        if let Some(profile) = self.config_manager.app_config.profiles.get(profile_name) {
+        if let Some(profile) = self.config_manager.get_profile(profile_name) {
             self.edit_component = EditComponent::from_profile(profile_name, profile);
             self.state = AppState::Edit;
         }
@@ -224,14 +218,7 @@ impl App {
         };
 
         // Validation
-        let graph = &self.config_manager.app_config.graph;
-        if let Some(&node_index) = graph.profile_nodes.get(&name_to_delete) {
-            let walker = graph.graph.parents(node_index);
-            let dependents: Vec<String> = walker
-                .iter(&graph.graph)
-                .map(|(_edge, node)| graph.graph[node].clone())
-                .collect();
-
+        if let Some(dependents) = self.config_manager.get_parents(&name_to_delete) {
             if !dependents.is_empty() {
                 let error_message = format!(
                     "Cannot delete '{}' as it is used by: {}",
@@ -258,21 +245,17 @@ impl App {
         // HOWEVER: The prompts says "Safe Delete", usually implies immediate effect or confirmed.
         // Existing code did: loader::delete_profile_file immediately.
         // If we want to keep existing behavior + consistency:
-        loader::delete_profile_file(&self.config_manager.base_path, &name_to_delete)?;
+        self.config_manager.delete_profile_file(&name_to_delete)?;
         self.pending_deletes.remove(&name_to_delete); // Done.
 
         // Remove from config manager's in-memory cache
-        self.config_manager
-            .app_config
-            .profiles
-            .remove(&name_to_delete);
+        self.config_manager.remove_profile(&name_to_delete);
 
         // Remove from dirty set if it's there
         self.list_component.clear_dirty(&name_to_delete);
 
-        // Rebuild graph
-        self.config_manager.app_config.graph =
-            ProfileGraph::build(&self.config_manager.app_config.profiles)?;
+        // Remove from graph incrementally (more efficient than rebuild)
+        self.config_manager.remove_profile_node(&name_to_delete)?;
 
         // Adjust selected index (update_profiles handles this now, but let's be explicit)
         let profile_count = self.list_component.all_profiles().len();

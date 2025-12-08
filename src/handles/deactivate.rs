@@ -15,7 +15,7 @@ pub fn handle(items: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     for profile_name in &profile_items {
         vars.extend(
             config_manager
-                .read_profile(profile_name)
+                .get_profile(profile_name)
                 .ok_or_else(|| format!("Profile `{profile_name}` not found during activation"))?
                 .collect_vars(&config_manager)?,
         );

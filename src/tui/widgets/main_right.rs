@@ -29,7 +29,7 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
         render_edit_mode(frame, area, app, &selected_name, &theme);
     } else {
         // View Mode
-        let profile = match app.config_manager.app_config.profiles.get(&selected_name) {
+        let profile = match app.config_manager.get_profile(&selected_name) {
             Some(p) => p,
             None => {
                 render_error_state(frame, area, &selected_name, &theme);
@@ -255,8 +255,8 @@ fn render_edit_mode(frame: &mut Frame, area: Rect, app: &App, profile_name: &str
         .iter()
         .enumerate()
         .map(|(idx, (k, v))| {
-            let key_text = k.text.as_str();
-            let value_text = v.text.as_str();
+            let key_text = k.text();
+            let value_text = v.text();
             let selected = idx == edit.selected_variable_index();
             let _is_key_focused = edit.variable_column_focus() == EditVariableFocus::Key;
 
@@ -348,12 +348,11 @@ fn render_edit_mode(frame: &mut Frame, area: Rect, app: &App, profile_name: &str
             };
 
             // Create temporary Input for rendering
-            let temp_input = crate::tui::utils::Input {
-                text: input_state.text.to_string(),
-                cursor_position: input_state.cursor_pos,
-                is_valid: input_state.is_valid,
-                error_message: input_state.error.map(|s| s.to_string()),
-            };
+            let temp_input = crate::tui::utils::Input::from_parts(
+                input_state.text.to_string(),
+                input_state.cursor_pos,
+                input_state.error.map(|s| s.to_string()),
+            );
 
             render_variable_input_popup(frame, popup_area, &temp_input, title, theme);
         }
@@ -378,7 +377,7 @@ fn render_variable_input_popup(
 
     frame.render_widget(Clear, area);
 
-    let border_style = if input.is_valid {
+    let border_style = if input.is_valid() {
         theme.block_active()
     } else {
         theme.text_error()
@@ -389,20 +388,16 @@ fn render_variable_input_popup(
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    if !input.is_valid {
-        if let Some(err) = &input.error_message {
-            block = block.title_bottom(
-                Line::from(err.as_str())
-                    .style(theme.text_error())
-                    .right_aligned(),
-            );
+    if !input.is_valid() {
+        if let Some(err) = input.error_message() {
+            block = block.title_bottom(Line::from(err).style(theme.text_error()).right_aligned());
         }
     }
 
     let inner_area = block.inner(area);
 
-    let text = &input.text;
-    let cursor_pos = input.cursor_position;
+    let text = input.text();
+    let cursor_pos = input.cursor_position();
 
     let prefix_width = text
         .chars()
@@ -417,7 +412,7 @@ fn render_variable_input_popup(
         0
     };
 
-    let paragraph = Paragraph::new(text.as_str()).scroll((0, scroll_offset));
+    let paragraph = Paragraph::new(text).scroll((0, scroll_offset));
 
     frame.render_widget(block, area);
     frame.render_widget(paragraph, inner_area);
@@ -467,7 +462,7 @@ fn render_dependency_selector(
         .map(|(idx, name)| {
             let selected = selector_state.selected_indices.contains(&idx);
             let marker = if selected { "[✓] " } else { "[ ] " };
-            ListItem::new(format!("{}{}", marker, name))
+            ListItem::new(format!("{marker}{name}"))
         })
         .collect();
 
@@ -480,8 +475,8 @@ fn render_dependency_selector(
     let total_count = selector_state.options.len();
     let selected_count = selector_state.selected_indices.len();
 
-    let left_title = Line::from(format!("{}/{}", current_pos, total_count)).left_aligned();
-    let right_title = Line::from(format!("Selected: {}", selected_count)).right_aligned();
+    let left_title = Line::from(format!("{current_pos}/{total_count}")).left_aligned();
+    let right_title = Line::from(format!("Selected: {selected_count}")).right_aligned();
 
     let list = List::new(items)
         .block(

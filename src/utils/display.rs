@@ -22,7 +22,7 @@ impl ProfileNames {
             };
             eprintln!("{top_level_branch} {}", name.cyan());
 
-            if let Some(profile_cfg) = config_manager.read_profile(name) {
+            if let Some(profile_cfg) = config_manager.get_profile(name) {
                 let current_level_indent = if is_last_top_level_profile {
                     "    "
                 } else {
@@ -53,7 +53,7 @@ impl ProfileNames {
             };
             eprintln!("{top_level_branch} {}", name.cyan());
 
-            if let Some(profile_cfg) = config_manager.read_profile(name) {
+            if let Some(profile_cfg) = config_manager.get_profile(name) {
                 let current_level_indent = if is_last_top_level_profile {
                     "    "
                 } else {
@@ -118,7 +118,7 @@ impl Profile {
                     profile_name.cyan()
                 );
 
-                if let Some(nested_profile) = config_manager.read_profile(profile_name) {
+                if let Some(nested_profile) = config_manager.get_profile(profile_name) {
                     let nested_pipe_prefix = if is_last_profile { "    " } else { "│   " };
 
                     let nested_indent = format!("{next_level_base_indent}{nested_pipe_prefix}");

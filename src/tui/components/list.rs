@@ -34,11 +34,11 @@ impl ListComponent {
 
     /// Get filtered profiles based on search mode
     pub fn filtered_profiles(&self) -> Vec<String> {
-        if !self.in_search_mode || self.search_input.text.is_empty() {
+        if !self.in_search_mode || self.search_input.text().is_empty() {
             return self.profile_names.clone();
         }
 
-        let search_query = self.search_input.text.to_lowercase();
+        let search_query = self.search_input.text().to_lowercase();
         self.profile_names
             .iter()
             .filter(|name| name.to_lowercase().contains(&search_query))
@@ -169,10 +169,9 @@ impl ListComponent {
     pub fn start_rename(&mut self) {
         if let Some(current_name) = self.current_profile() {
             let name = current_name.to_string();
-            self.rename_input.text = name.clone();
-            self.rename_input.cursor_position = name.len();
-            self.rename_input.is_valid = true;
-            self.rename_input.error_message = None;
+            self.rename_input.set_text(name.clone());
+            self.rename_input.set_cursor_position(name.len());
+            self.rename_input.clear_error();
         }
     }
 

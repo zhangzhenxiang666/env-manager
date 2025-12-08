@@ -139,18 +139,12 @@ impl EditComponent {
             .variables
             .iter()
             .map(|(k, v)| {
-                let mut k_in = Input::default();
-                k_in.text = k.clone();
-                k_in.cursor_position = k.len();
-
-                let mut v_in = Input::default();
-                v_in.text = v.clone();
-                v_in.cursor_position = v.len();
-
+                let k_in = Input::with_text(k.clone());
+                let v_in = Input::with_text(v.clone());
                 (k_in, v_in)
             })
             .collect();
-        variables.sort_by(|a, b| a.0.text.cmp(&b.0.text));
+        variables.sort_by(|a, b| a.0.text().cmp(b.0.text()));
 
         let mut profiles: Vec<String> = profile.profiles.iter().cloned().collect();
         profiles.sort();
@@ -158,7 +152,7 @@ impl EditComponent {
         // Create snapshots of original state for change detection
         let original_variables: Vec<(String, String)> = variables
             .iter()
-            .map(|(k, v)| (k.text.clone(), v.text.clone()))
+            .map(|(k, v)| (k.text().to_string(), v.text().to_string()))
             .collect();
         let original_profiles = profiles.clone();
 
@@ -184,8 +178,8 @@ impl EditComponent {
     pub fn to_profile(&self) -> Profile {
         let mut variables_map = std::collections::HashMap::new();
         for (k, v) in &self.variables {
-            if !k.text.is_empty() {
-                variables_map.insert(k.text.clone(), v.text.clone());
+            if !k.text().is_empty() {
+                variables_map.insert(k.text().to_string(), v.text().to_string());
             }
         }
 
@@ -226,7 +220,7 @@ impl EditComponent {
         // Check if any variable content changed
         for (i, (k, v)) in self.variables.iter().enumerate() {
             if let Some((orig_k, orig_v)) = self.original_variables.get(i) {
-                if &k.text != orig_k || &v.text != orig_v {
+                if k.text() != orig_k || v.text() != orig_v {
                     return true;
                 }
             }
@@ -240,9 +234,7 @@ impl EditComponent {
 
     /// Get iterator over variables (key, value) pairs for rendering
     pub fn variables(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.variables
-            .iter()
-            .map(|(k, v)| (k.text.as_str(), v.text.as_str()))
+        self.variables.iter().map(|(k, v)| (k.text(), v.text()))
     }
 
     pub fn variables_count(&self) -> usize {
@@ -272,10 +264,10 @@ impl EditComponent {
         let input = if is_key_focused { k } else { v };
 
         Some(VariableInputState {
-            text: &input.text,
-            cursor_pos: input.cursor_position,
-            is_valid: input.is_valid,
-            error: input.error_message.as_deref(),
+            text: input.text(),
+            cursor_pos: input.cursor_position(),
+            is_valid: input.is_valid(),
+            error: input.error_message(),
             is_key_focused,
         })
     }
@@ -375,8 +367,8 @@ impl EditComponent {
         self.is_editing_variable = true;
         let (k, v) = &self.variables[self.selected_variable_index];
         self.pre_edit_buffer = Some(match self.variable_column_focus {
-            EditVariableFocus::Key => k.text.clone(),
-            EditVariableFocus::Value => v.text.clone(),
+            EditVariableFocus::Key => k.text().to_string(),
+            EditVariableFocus::Value => v.text().to_string(),
         });
     }
 
@@ -389,8 +381,7 @@ impl EditComponent {
         if self.is_editing_variable {
             if let Some(buf) = self.pre_edit_buffer.take() {
                 if let Some(input) = self.get_focused_variable_input_mut() {
-                    input.text = buf;
-                    input.cursor_position = input.text.len();
+                    input.set_text(buf);
                 }
             }
             self.is_editing_variable = false;
@@ -412,13 +403,13 @@ impl EditComponent {
     /// Check if the variable at index is valid (for deletion logic)
     pub fn is_variable_valid(&self, index: usize) -> bool {
         if let Some((key_input, _)) = self.variables.get(index) {
-            !key_input.text.is_empty()
-                && !key_input.text.chars().any(char::is_whitespace)
+            !key_input.text().is_empty()
+                && !key_input.text().chars().any(char::is_whitespace)
                 && !key_input
-                    .text
+                    .text()
                     .chars()
                     .next()
-                    .map_or(false, |c| c.is_ascii_digit())
+                    .is_some_and(|c| c.is_ascii_digit())
         } else {
             false
         }

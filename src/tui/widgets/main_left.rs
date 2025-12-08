@@ -109,7 +109,7 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
             frame.render_widget(Clear, input_area);
 
             // Determine border style (Normal or Error)
-            let border_style = if input.is_valid {
+            let border_style = if input.is_valid() {
                 Theme::new().block_active()
             } else {
                 Theme::new().text_error()
@@ -120,9 +120,9 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
                 .title_top(Line::from("Rename Profile").left_aligned())
                 .border_style(border_style);
 
-            if let Some(err) = &input.error_message {
+            if let Some(err) = input.error_message() {
                 block = block.title_bottom(
-                    Line::from(err.as_str())
+                    Line::from(err)
                         .style(Theme::new().text_error())
                         .right_aligned(),
                 );
@@ -133,8 +133,8 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
             let inner_area = block.inner(input_area);
 
             // Render Input Text
-            let text = &input.text;
-            let cursor_pos = input.cursor_position;
+            let text = input.text();
+            let cursor_pos = input.cursor_position();
 
             let prefix_width = text
                 .chars()
@@ -150,13 +150,11 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
             };
 
             let mut style = Theme::new().text_normal();
-            if !input.is_valid {
+            if !input.is_valid() {
                 style = Theme::new().text_error();
             }
 
-            let paragraph = Paragraph::new(text.as_str())
-                .style(style)
-                .scroll((0, scroll_offset));
+            let paragraph = Paragraph::new(text).style(style).scroll((0, scroll_offset));
 
             frame.render_widget(paragraph, inner_area);
 

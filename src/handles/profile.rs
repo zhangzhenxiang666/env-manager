@@ -2,7 +2,6 @@ use crate::cli::ProfileCommands::{self, Add, Create, Delete, List, Remove, Renam
 use crate::config::ConfigManager;
 use crate::config::models::Profile;
 use crate::{cli::ProfileRenameArgs, utils::display};
-use daggy::Walker;
 
 pub fn handle(profile_commands: ProfileCommands) -> Result<(), Box<dyn std::error::Error>> {
     let mut config_manager = ConfigManager::new()?;
@@ -54,30 +53,15 @@ fn rename(
         dest_name,
     } = rename_args;
 
-    config_manager.rename_profile(&src_name, &dest_name)?;
+    config_manager.rename_profile_file(&src_name, &dest_name)?;
 
     // Find reverse dependencies and update them
-    if let Some(&node_index) = config_manager.app_config.graph.profile_nodes.get(&src_name) {
-        let parents = config_manager.app_config.graph.graph.parents(node_index);
-        let dependents: Vec<String> = parents
-            .iter(&config_manager.app_config.graph.graph)
-            .map(|(_, parent_index)| config_manager.app_config.graph.graph[parent_index].clone())
-            .collect();
-
+    if let Some(dependents) = config_manager.get_parents(&src_name) {
         for dep in dependents {
-            config_manager
-                .read_profile_mut(&dep)
-                .unwrap()
-                .profiles
-                .remove(&src_name);
-
-            config_manager
-                .read_profile_mut(&dep)
-                .unwrap()
-                .profiles
-                .insert(dest_name.clone());
-
-            config_manager.write_profile(&dep, config_manager.read_profile(&dep).unwrap())?;
+            config_manager.update_profile_dependencies(&dep, &src_name, &dest_name);
+            if let Some(profile) = config_manager.get_profile(&dep) {
+                config_manager.write_profile(&dep, profile)?;
+            }
         }
     }
 
@@ -91,13 +75,7 @@ fn delete(
     name: String,
     config_manager: &mut ConfigManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(&node_index) = config_manager.app_config.graph.profile_nodes.get(&name) {
-        let parents = config_manager.app_config.graph.graph.parents(node_index);
-        let dependents: Vec<String> = parents
-            .iter(&config_manager.app_config.graph.graph)
-            .map(|(_, parent_index)| config_manager.app_config.graph.graph[parent_index].clone())
-            .collect();
-
+    if let Some(dependents) = config_manager.get_parents(&name) {
         if !dependents.is_empty() {
             return Err(format!(
                 "Cannot delete profile '{name}' because it is used by: {}",
@@ -107,7 +85,7 @@ fn delete(
         }
     }
 
-    config_manager.delete_profile(&name)?;
+    config_manager.delete_profile_file(&name)?;
     display::show_success(&format!("Profile '{name}' deleted successfully."));
     Ok(())
 }
@@ -123,10 +101,9 @@ fn add(
 
     for item in items {
         if let Some((key, value)) = item.split_once('=') {
-            config_manager
-                .read_profile_mut(&name)
-                .unwrap()
-                .add_variable(key, value);
+            if let Some(profile) = config_manager.get_profile_mut(&name) {
+                profile.add_variable(key, value);
+            }
             display::show_success(&format!("Variable '{key}' added to profile '{name}'."));
         } else {
             let dependency_to_add = &item;
@@ -152,17 +129,18 @@ fn add(
                 .into());
             }
 
-            config_manager
-                .read_profile_mut(&name)
-                .unwrap()
-                .add_profile(dependency_to_add);
+            if let Some(profile) = config_manager.get_profile_mut(&name) {
+                profile.add_profile(dependency_to_add);
+            }
             display::show_success(&format!(
                 "Nested profile '{dependency_to_add}' added to profile '{name}'."
             ));
         }
     }
 
-    config_manager.write_profile(&name, config_manager.read_profile(&name).unwrap())?;
+    if let Some(profile) = config_manager.get_profile(&name) {
+        config_manager.write_profile(&name, profile)?;
+    }
 
     Ok(())
 }
@@ -177,20 +155,19 @@ fn remove(
     }
 
     for item in items {
-        let was_variable = config_manager
-            .read_profile_mut(&name)
-            .unwrap()
-            .remove_variable(&item)
-            .is_some();
+        let was_variable = if let Some(profile) = config_manager.get_profile_mut(&name) {
+            profile.remove_variable(&item).is_some()
+        } else {
+            false
+        };
 
-        let original_len = config_manager.read_profile(&name).unwrap().profiles.len();
-
-        config_manager
-            .read_profile_mut(&name)
-            .unwrap()
-            .remove_profile(&item);
-
-        let was_profile = config_manager.read_profile(&name).unwrap().profiles.len() < original_len;
+        let was_profile = if let Some(profile) = config_manager.get_profile_mut(&name) {
+            let original_len = profile.profiles.len();
+            profile.remove_profile(&item);
+            profile.profiles.len() < original_len
+        } else {
+            false
+        };
 
         if was_variable {
             display::show_success(&format!("Variable '{item}' removed from profile '{name}'."));
@@ -203,6 +180,8 @@ fn remove(
         }
     }
 
-    config_manager.write_profile(&name, config_manager.read_profile(&name).unwrap())?;
+    if let Some(profile) = config_manager.get_profile(&name) {
+        config_manager.write_profile(&name, profile)?;
+    }
     Ok(())
 }

@@ -25,8 +25,8 @@ impl std::fmt::Display for DependencyError {
 impl std::error::Error for DependencyError {}
 
 pub struct ProfileGraph {
-    pub graph: Dag<String, ()>,
-    pub profile_nodes: HashMap<String, NodeIndex>,
+    graph: Dag<String, ()>,
+    profile_nodes: HashMap<String, NodeIndex>,
 }
 
 impl Default for ProfileGraph {
@@ -177,5 +177,111 @@ impl ProfileGraph {
             path_stack.pop();
         }
         visiting.remove(&current_index);
+    }
+
+    /// Get all parent profiles that depend on the given profile
+    pub fn get_parents(&self, profile_name: &str) -> Option<Vec<String>> {
+        if let Some(&node_index) = self.profile_nodes.get(profile_name) {
+            Some(
+                self.graph
+                    .parents(node_index)
+                    .iter(&self.graph)
+                    .map(|(_, parent_index)| self.graph[parent_index].clone())
+                    .collect(),
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Check if a profile exists in the graph
+    pub fn has_profile(&self, name: &str) -> bool {
+        self.profile_nodes.contains_key(name)
+    }
+
+    /// Add a dependency edge from parent to child
+    /// This is more efficient than rebuilding the entire graph when you know
+    /// the edge won't create a cycle (e.g., after UI validation)
+    pub fn add_dependency(&mut self, parent: &str, child: &str) -> Result<(), DependencyError> {
+        let &parent_index = self
+            .profile_nodes
+            .get(parent)
+            .ok_or_else(|| DependencyError::ProfileNotFound(parent.to_string()))?;
+
+        let &child_index = self
+            .profile_nodes
+            .get(child)
+            .ok_or_else(|| DependencyError::ProfileNotFound(child.to_string()))?;
+
+        // Try to add the edge
+        if self.graph.add_edge(parent_index, child_index, ()).is_err() {
+            // Would create a cycle
+            let mut path = self
+                .find_path(child, parent)
+                .unwrap_or_else(|| vec![child.to_string(), parent.to_string()]);
+            path.insert(0, parent.to_string());
+            return Err(DependencyError::CircularDependency(path));
+        }
+
+        Ok(())
+    }
+
+    /// Remove a dependency edge from parent to child
+    pub fn remove_dependency(&mut self, parent: &str, child: &str) -> Result<(), DependencyError> {
+        let &parent_index = self
+            .profile_nodes
+            .get(parent)
+            .ok_or_else(|| DependencyError::ProfileNotFound(parent.to_string()))?;
+
+        let &child_index = self
+            .profile_nodes
+            .get(child)
+            .ok_or_else(|| DependencyError::ProfileNotFound(child.to_string()))?;
+
+        // Find and remove the edge
+        if let Some(edge_index) = self.graph.find_edge(parent_index, child_index) {
+            self.graph.remove_edge(edge_index);
+            Ok(())
+        } else {
+            // Edge doesn't exist, but that's okay
+            Ok(())
+        }
+    }
+
+    /// Add a new profile node to the graph
+    pub fn add_node(&mut self, name: String) {
+        if !self.profile_nodes.contains_key(&name) {
+            let index = self.graph.add_node(name.clone());
+            self.profile_nodes.insert(name, index);
+        }
+    }
+
+    /// Remove a profile node from the graph
+    /// Note: This will also remove all edges connected to this node
+    pub fn remove_node(&mut self, name: &str) -> Result<(), DependencyError> {
+        if let Some(&node_index) = self.profile_nodes.get(name) {
+            self.graph.remove_node(node_index);
+            self.profile_nodes.remove(name);
+            Ok(())
+        } else {
+            Err(DependencyError::ProfileNotFound(name.to_string()))
+        }
+    }
+
+    /// Rename a profile node in the graph
+    pub fn rename_node(&mut self, old_name: &str, new_name: String) -> Result<(), DependencyError> {
+        let &node_index = self
+            .profile_nodes
+            .get(old_name)
+            .ok_or_else(|| DependencyError::ProfileNotFound(old_name.to_string()))?;
+
+        // Update the node's data
+        self.graph[node_index] = new_name.clone();
+
+        // Update the profile_nodes map
+        self.profile_nodes.remove(old_name);
+        self.profile_nodes.insert(new_name, node_index);
+
+        Ok(())
     }
 }

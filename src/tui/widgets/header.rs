@@ -13,7 +13,7 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
         let paragraph = Paragraph::new(Line::from(vec![
             Span::styled(prefix, Theme::new().text_highlight()),
-            Span::styled(search_input.text.as_str(), Theme::new().text_normal()), // Use normal or highlight?
+            Span::styled(search_input.text(), Theme::new().text_normal()), // Use normal or highlight?
         ]))
         .block(
             Block::default()
@@ -25,9 +25,12 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
         // Cursor Calculation
         // Calculate the width of text before the cursor
-        let cursor_char_index = search_input.cursor_position;
-        let input_text_before_cursor: String =
-            search_input.text.chars().take(cursor_char_index).collect();
+        let cursor_char_index = search_input.cursor_position();
+        let input_text_before_cursor: String = search_input
+            .text()
+            .chars()
+            .take(cursor_char_index)
+            .collect();
         // Width of "Search: "
         let prefix_width = prefix.width();
         // Width of input text up to cursor

@@ -129,32 +129,43 @@ fn handle_navigation_mode(app: &mut App, key: KeyEvent) {
 
 fn save_profile(app: &mut App) {
     validate_name(app);
-    if !app.add_new_component.name_input().is_valid {
+    if !app.add_new_component.name_input().is_valid() {
         return;
     }
 
     let add_new = &mut app.add_new_component;
-    let new_name = add_new.name_input().text.trim().to_string();
+    let new_name = add_new.name_input().text().trim().to_string();
 
     let variables_map: HashMap<String, String> = add_new
         .variables_for_rendering()
         .iter()
-        .map(|(k, v)| (k.text.clone(), v.text.clone()))
+        .map(|(k, v)| (k.text().to_string(), v.text().to_string()))
         .filter(|(k, _)| !k.is_empty())
         .collect();
 
     let new_profile = Profile {
         profiles: add_new.added_profiles().iter().cloned().collect(),
         variables: variables_map,
-        ..Default::default()
     };
 
+    // 1. Add profile to memory
     app.config_manager
-        .app_config
-        .profiles
-        .insert(new_name.clone(), new_profile);
+        .add_profile(new_name.clone(), new_profile.clone());
     app.list_component.mark_dirty(new_name.clone());
 
+    // 2. Add node to graph
+    app.config_manager.add_profile_node(new_name.clone());
+
+    // 3. Add dependency edges to graph
+    for dep_name in &new_profile.profiles {
+        if let Err(e) = app.config_manager.add_dependency_edge(&new_name, dep_name) {
+            app.status_message = Some(format!(
+                "Warning: Failed to add dependency edge to '{dep_name}': {e}"
+            ));
+        }
+    }
+
+    // 4. Update UI list
     let mut profiles = app.list_component.all_profiles().to_vec();
     profiles.push(new_name.clone());
     profiles.sort();
@@ -183,7 +194,7 @@ fn attempt_switch_focus(app: &mut App, forward: bool) {
     // If focused on Name, validate before leaving
     if app.add_new_component.current_focus() == AddNewFocus::Name {
         validate_name(app);
-        if !app.add_new_component.name_input().is_valid {
+        if !app.add_new_component.name_input().is_valid() {
             return;
         }
     }
@@ -214,7 +225,7 @@ fn dispatch_context_key(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Enter if focus == AddNewFocus::Name => {
             validate_name(app);
-            if app.add_new_component.name_input().is_valid {
+            if app.add_new_component.name_input().is_valid() {
                 app.add_new_component.switch_focus(true);
             }
         }
@@ -235,7 +246,7 @@ fn profiles(app: &mut App, key_code: KeyCode) {
         .list_component
         .all_profiles()
         .iter()
-        .filter(|name| **name != add_new.name_input().text)
+        .filter(|name| **name != add_new.name_input().text())
         .collect();
     let count = available_profiles.len();
 
@@ -270,53 +281,45 @@ fn variables(app: &mut App, key_code: KeyCode) {
 
 fn validate_name(app: &mut App) {
     let input = app.add_new_component.name_input_mut();
-    input.is_valid = true;
-    input.error_message = None;
+    input.clear_error();
 
-    if let Err(e) = utils::validate_non_empty(&input.text) {
+    if let Err(e) = utils::validate_non_empty(input.text()) {
         input.set_error_message(&format!("Name {e}"));
         return;
     }
-    if let Err(e) = utils::validate_no_spaces(&input.text) {
+    if let Err(e) = utils::validate_no_spaces(input.text()) {
         input.set_error_message(&format!("Name {e}"));
         return;
     }
-    if let Err(e) = utils::validate_starts_with_non_digit(&input.text) {
+    if let Err(e) = utils::validate_starts_with_non_digit(input.text()) {
         input.set_error_message(&format!("Name {e}"));
         return;
     }
 
-    if app
-        .config_manager
-        .app_config
-        .profiles
-        .contains_key(&input.text)
-    {
+    if app.config_manager.has_profile(input.text()) {
         input.set_error_message("Profile already exists");
         return;
     }
-    input.is_valid = true;
-    input.error_message = None;
+    input.clear_error();
 }
 
 /// Validates the currently focused variable input (if it's a Key).
 /// Returns true if valid, false if invalid.
 fn validate_variable_key_input(add_new: &mut AddNewComponent) -> bool {
     if let Some(input) = add_new.get_focused_variable_input_mut() {
-        if let Err(e) = utils::validate_non_empty(&input.text) {
+        if let Err(e) = utils::validate_non_empty(input.text()) {
             input.set_error_message(&e);
             return false;
         }
-        if let Err(e) = utils::validate_no_spaces(&input.text) {
+        if let Err(e) = utils::validate_no_spaces(input.text()) {
             input.set_error_message(&e);
             return false;
         }
-        if let Err(e) = utils::validate_starts_with_non_digit(&input.text) {
+        if let Err(e) = utils::validate_starts_with_non_digit(input.text()) {
             input.set_error_message(&e);
             return false;
         }
-        input.is_valid = true;
-        input.error_message = None;
+        input.clear_error();
         return true;
     }
     true

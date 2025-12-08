@@ -279,8 +279,8 @@ impl AddNewComponent {
         self.is_editing_variable = true;
         let (k, v) = &self.variables[self.selected_variable_index];
         self.pre_edit_buffer = Some(match self.variable_column_focus {
-            AddNewVariableFocus::Key => k.text.clone(),
-            AddNewVariableFocus::Value => v.text.clone(),
+            AddNewVariableFocus::Key => k.text().to_string(),
+            AddNewVariableFocus::Value => v.text().to_string(),
         });
     }
 
@@ -291,10 +291,10 @@ impl AddNewComponent {
 
     pub fn cancel_editing_variable(&mut self) {
         if self.is_editing_variable {
+            // Extract buffer first to avoid borrow conflict
             if let Some(buf) = self.pre_edit_buffer.take() {
                 if let Some(input) = self.get_focused_variable_input_mut() {
-                    input.text = buf;
-                    input.cursor_position = input.text.len();
+                    input.set_text(buf);
                 }
             }
             self.is_editing_variable = false;
@@ -328,13 +328,13 @@ impl AddNewComponent {
     /// Check if the variable at index is valid (for deletion logic)
     pub fn is_variable_valid(&self, index: usize) -> bool {
         if let Some((key_input, _)) = self.variables.get(index) {
-            !key_input.text.is_empty()
-                && !key_input.text.chars().any(char::is_whitespace)
+            !key_input.text().is_empty()
+                && !key_input.text().chars().any(char::is_whitespace)
                 && !key_input
-                    .text
+                    .text()
                     .chars()
                     .next()
-                    .map_or(false, |c| c.is_ascii_digit())
+                    .is_some_and(|c| c.is_ascii_digit())
         } else {
             false
         }
