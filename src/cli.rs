@@ -50,6 +50,12 @@ pub enum Commands {
 
     /// Launch the terminal UI
     Ui,
+
+    /// Check for issues in the profiles directory (missing files, circular dependencies)
+    Check,
+
+    /// Attempt to fix issues in the profiles directory
+    Fix,
 }
 
 #[derive(Subcommand, Debug)]

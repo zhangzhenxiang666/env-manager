@@ -271,7 +271,7 @@ impl App {
     }
 
     pub fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let mut app = App::new(ConfigManager::new()?);
+        let mut app = App::new(ConfigManager::new_full()?);
 
         enable_raw_mode()?;
         let mut stderr = io::stderr();

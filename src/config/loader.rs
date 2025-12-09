@@ -5,20 +5,31 @@ use std::path::Path;
 
 use crate::config::models::Profile;
 
-pub fn load_profiles_from_dir(path: &Path) -> Result<HashMap<String, Profile>, Box<dyn Error>> {
-    let mut profiles = HashMap::new();
+pub fn scan_profile_names(path: &Path) -> Result<Vec<String>, Box<dyn Error>> {
+    let mut names = Vec::new();
+    if !path.exists() {
+        return Ok(names);
+    }
     for entry in fs::read_dir(path)? {
         let entry = entry?;
         let path = entry.path();
         if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("toml") {
             if let Some(profile_name) = path.file_stem().and_then(|s| s.to_str()) {
-                let content = fs::read_to_string(&path)?;
-                let profile: Profile = toml::from_str(&content)?;
-                profiles.insert(profile_name.to_string(), profile);
+                names.push(profile_name.to_string());
             }
         }
     }
-    Ok(profiles)
+    Ok(names)
+}
+
+pub fn load_profile_from_file(base_path: &Path, name: &str) -> Result<Profile, Box<dyn Error>> {
+    let path = base_path.join("profiles").join(format!("{name}.toml"));
+    if !path.exists() {
+        return Err(format!("Profile '{name}' not found.").into());
+    }
+    let content = fs::read_to_string(&path)?;
+    let profile: Profile = toml::from_str(&content)?;
+    Ok(profile)
 }
 
 pub fn read_global_config(base_path: &Path) -> Result<Profile, Box<dyn Error>> {

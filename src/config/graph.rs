@@ -6,17 +6,83 @@ use crate::config::models::Profile;
 #[derive(Debug)]
 pub enum DependencyError {
     CircularDependency(Vec<String>),
+    /// Profile references a non-existent dependency: (parent_profile, missing_dependency)
+    DependencyNotFound(String, String),
+    /// Profile itself does not exist
     ProfileNotFound(String),
+    /// Context wrapper for dependency errors
+    DependencyChain {
+        profile: String,
+        cause: Box<DependencyError>,
+    },
+    /// Multiple errors occurred
+    MultipleErrors(Vec<DependencyError>),
 }
 
 impl std::fmt::Display for DependencyError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
+        // Helper to unwind the chain and build stack trace
+        fn unwind_error<'a>(
+            err: &'a DependencyError,
+            stack: &mut Vec<&'a str>,
+        ) -> &'a DependencyError {
+            match err {
+                DependencyError::DependencyChain { profile, cause } => {
+                    stack.push(profile);
+                    unwind_error(cause, stack)
+                }
+                _ => err,
+            }
+        }
+
+        // Special handling for MultipleErrors - direct printing
+        if let DependencyError::MultipleErrors(errors) = self {
+            for (i, err) in errors.iter().enumerate() {
+                if i > 0 {
+                    writeln!(f)?;
+                }
+                write!(f, "{err}")?;
+            }
+            return Ok(());
+        }
+
+        let mut stack = Vec::new();
+        let root_cause = unwind_error(self, &mut stack);
+
+        if !stack.is_empty() {
+            write!(f, "Trace: {}", stack.join(" -> "))?;
+            write!(f, " -> ")?;
+        }
+
+        match root_cause {
             DependencyError::CircularDependency(path) => {
                 write!(f, "Circular dependency detected: {}", path.join(" -> "))
             }
-            DependencyError::ProfileNotFound(name) => {
-                write!(f, "Profile '{name}' not found in configuration.")
+            DependencyError::DependencyNotFound(parent, dep) => {
+                write!(
+                    f,
+                    "Profile '{parent}' references non-existent profile '{dep}'."
+                )
+            }
+            DependencyError::ProfileNotFound(profile) => {
+                write!(f, "Profile '{profile}' not found.")
+            }
+            DependencyError::DependencyChain { profile, cause } => {
+                // Should be unreachable due to unwind_error, but handled for safety
+                write!(f, "In profile '{profile}': {cause}")
+            }
+            DependencyError::MultipleErrors(errors) => {
+                // This can happen if MultipleErrors is nested inside DependencyChain
+                // In this case, we're at the end of a trace pointing to a multiple error block
+                for (i, err) in errors.iter().enumerate() {
+                    if i > 0 {
+                        writeln!(f)?;
+                        // Indent subsequent errors to align with trace?
+                        // Or just print them.
+                    }
+                    write!(f, "{err}")?; // Recurse
+                }
+                Ok(())
             }
         }
     }
@@ -54,10 +120,9 @@ impl ProfileGraph {
         for (name, profile) in profiles {
             let parent_index = profile_graph.profile_nodes[name];
             for dep_name in &profile.profiles {
-                let &dep_index = profile_graph
-                    .profile_nodes
-                    .get(dep_name)
-                    .ok_or_else(|| DependencyError::ProfileNotFound(dep_name.clone()))?;
+                let &dep_index = profile_graph.profile_nodes.get(dep_name).ok_or_else(|| {
+                    DependencyError::DependencyNotFound(name.clone(), dep_name.clone())
+                })?;
 
                 if profile_graph
                     .graph
@@ -119,6 +184,7 @@ impl ProfileGraph {
                 self.dfs_resolve(dep_name, visiting, resolved, result)?;
             }
         } else {
+            // This shouldn't happen if the graph was built correctly, but just in case
             return Err(DependencyError::ProfileNotFound(profile_name.to_string()));
         }
 
@@ -194,11 +260,6 @@ impl ProfileGraph {
         }
     }
 
-    /// Check if a profile exists in the graph
-    pub fn has_profile(&self, name: &str) -> bool {
-        self.profile_nodes.contains_key(name)
-    }
-
     /// Add a dependency edge from parent to child
     /// This is more efficient than rebuilding the entire graph when you know
     /// the edge won't create a cycle (e.g., after UI validation)
@@ -208,10 +269,9 @@ impl ProfileGraph {
             .get(parent)
             .ok_or_else(|| DependencyError::ProfileNotFound(parent.to_string()))?;
 
-        let &child_index = self
-            .profile_nodes
-            .get(child)
-            .ok_or_else(|| DependencyError::ProfileNotFound(child.to_string()))?;
+        let &child_index = self.profile_nodes.get(child).ok_or_else(|| {
+            DependencyError::DependencyNotFound(parent.to_string(), child.to_string())
+        })?;
 
         // Try to add the edge
         if self.graph.add_edge(parent_index, child_index, ()).is_err() {
@@ -233,10 +293,9 @@ impl ProfileGraph {
             .get(parent)
             .ok_or_else(|| DependencyError::ProfileNotFound(parent.to_string()))?;
 
-        let &child_index = self
-            .profile_nodes
-            .get(child)
-            .ok_or_else(|| DependencyError::ProfileNotFound(child.to_string()))?;
+        let &child_index = self.profile_nodes.get(child).ok_or_else(|| {
+            DependencyError::DependencyNotFound(parent.to_string(), child.to_string())
+        })?;
 
         // Find and remove the edge
         if let Some(edge_index) = self.graph.find_edge(parent_index, child_index) {

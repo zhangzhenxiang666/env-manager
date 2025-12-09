@@ -6,7 +6,7 @@ use crate::{cli::ProfileRenameArgs, utils::display};
 pub fn handle(profile_commands: ProfileCommands) -> Result<(), Box<dyn std::error::Error>> {
     let mut config_manager = ConfigManager::new()?;
     match profile_commands {
-        List { expand } => list(expand, &config_manager),
+        List { expand } => list(expand, &mut config_manager),
         Create { name } => create(name, &mut config_manager),
         Rename(args) => rename(args, &mut config_manager),
         Delete { name } => delete(name, &mut config_manager),
@@ -15,8 +15,12 @@ pub fn handle(profile_commands: ProfileCommands) -> Result<(), Box<dyn std::erro
     }
 }
 
-fn list(expand: bool, config_manager: &ConfigManager) -> Result<(), Box<dyn std::error::Error>> {
-    let profile_names = config_manager.list_profile_names();
+fn list(
+    expand: bool,
+    config_manager: &mut ConfigManager,
+) -> Result<(), Box<dyn std::error::Error>> {
+    config_manager.load_all_profiles()?;
+    let profile_names = config_manager.scan_profile_names()?;
     if profile_names.is_empty() {
         display::show_info("No profiles found.");
         return Ok(());
@@ -35,7 +39,7 @@ fn create(
     name: String,
     config_manager: &mut ConfigManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if config_manager.has_profile(&name) {
+    if config_manager.load_profile(&name).is_ok() {
         return Err(format!("Profile `{name}` already exists").into());
     }
     let profile = Profile::new();
@@ -53,9 +57,12 @@ fn rename(
         dest_name,
     } = rename_args;
 
+    // Ensure source is loaded
+    let _ = config_manager.load_profile(&src_name);
+
     config_manager.rename_profile_file(&src_name, &dest_name)?;
 
-    // Find reverse dependencies and update them
+    // Find reverse dependencies and update them (Only checks loaded profiles)
     if let Some(dependents) = config_manager.get_parents(&src_name) {
         for dep in dependents {
             config_manager.update_profile_dependencies(&dep, &src_name, &dest_name);
@@ -75,16 +82,7 @@ fn delete(
     name: String,
     config_manager: &mut ConfigManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(dependents) = config_manager.get_parents(&name) {
-        if !dependents.is_empty() {
-            return Err(format!(
-                "Cannot delete profile '{name}' because it is used by: {}",
-                dependents.join(", ")
-            )
-            .into());
-        }
-    }
-
+    // No dependency check as requested
     config_manager.delete_profile_file(&name)?;
     display::show_success(&format!("Profile '{name}' deleted successfully."));
     Ok(())
@@ -95,9 +93,10 @@ fn add(
     items: Vec<String>,
     config_manager: &mut ConfigManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if !config_manager.has_profile(&name) {
-        return Err(format!("Profile `{name}` does not exist").into());
-    }
+    // Load profile to ensure it exists and graph is populated
+    config_manager
+        .load_profile(&name)
+        .map_err(|_| format!("Profile `{name}` does not exist"))?;
 
     for item in items {
         if let Some((key, value)) = item.split_once('=') {
@@ -108,7 +107,8 @@ fn add(
         } else {
             let dependency_to_add = &item;
 
-            if !config_manager.has_profile(dependency_to_add) {
+            // Load dependency to check existence
+            if config_manager.load_profile(dependency_to_add).is_err() {
                 return Err(format!(
                     "Profile `{dependency_to_add}` does not exist and cannot be added as a nested profile."
                 )
@@ -150,9 +150,10 @@ fn remove(
     items: Vec<String>,
     config_manager: &mut ConfigManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if !config_manager.has_profile(&name) {
-        return Err(format!("Profile `{name}` does not exist").into());
-    }
+    // Load profile
+    config_manager
+        .load_profile(&name)
+        .map_err(|_| format!("Profile `{name}` does not exist"))?;
 
     for item in items {
         let was_variable = if let Some(profile) = config_manager.get_profile_mut(&name) {

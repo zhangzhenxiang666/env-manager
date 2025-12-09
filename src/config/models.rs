@@ -13,6 +13,7 @@ pub struct Profile {
     pub profiles: HashSet<String>,
 }
 
+#[derive(Default)]
 pub struct ProfileNames(pub Vec<String>);
 
 impl Profile {

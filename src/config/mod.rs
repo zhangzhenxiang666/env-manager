@@ -15,93 +15,81 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    pub fn new(profiles: HashMap<String, Profile>, graph: ProfileGraph) -> Self {
+    fn new(profiles: HashMap<String, Profile>, graph: ProfileGraph) -> Self {
         Self { profiles, graph }
     }
 
-    pub fn get_profile(&self, name: &str) -> Option<&Profile> {
+    fn get_profile(&self, name: &str) -> Option<&Profile> {
         self.profiles.get(name)
     }
 
-    pub fn get_profile_mut(&mut self, name: &str) -> Option<&mut Profile> {
+    fn get_profile_mut(&mut self, name: &str) -> Option<&mut Profile> {
         self.profiles.get_mut(name)
     }
 
-    pub fn add_profile(&mut self, name: String, profile: Profile) {
+    fn add_profile(&mut self, name: String, profile: Profile) {
         self.profiles.insert(name, profile);
     }
 
-    pub fn remove_profile(&mut self, name: &str) -> Option<Profile> {
+    fn remove_profile(&mut self, name: &str) -> Option<Profile> {
         self.profiles.remove(name)
     }
 
-    pub fn has_profile(&self, name: &str) -> bool {
+    fn has_profile(&self, name: &str) -> bool {
         self.profiles.contains_key(name)
     }
 
-    pub fn profile_names(&self) -> Vec<String> {
+    fn profile_names(&self) -> Vec<String> {
         self.profiles.keys().cloned().collect()
     }
 
-    pub fn profiles_iter(&self) -> impl Iterator<Item = (&String, &Profile)> {
+    fn profiles_iter(&self) -> impl Iterator<Item = (&String, &Profile)> {
         self.profiles.iter()
     }
 
-    pub fn profiles_iter_mut(&mut self) -> impl Iterator<Item = (&String, &mut Profile)> {
+    fn profiles_iter_mut(&mut self) -> impl Iterator<Item = (&String, &mut Profile)> {
         self.profiles.iter_mut()
     }
 
-    pub fn graph(&self) -> &ProfileGraph {
-        &self.graph
-    }
-
-    pub fn rebuild_graph(&mut self) -> Result<(), DependencyError> {
+    fn rebuild_graph(&mut self) -> Result<(), DependencyError> {
         self.graph = ProfileGraph::build(&self.profiles)?;
         Ok(())
     }
 
-    pub fn resolve_dependencies(&self, profile_name: &str) -> Result<Vec<String>, DependencyError> {
+    fn resolve_dependencies(&self, profile_name: &str) -> Result<Vec<String>, DependencyError> {
         self.graph.resolve_dependencies(profile_name)
     }
 
-    pub fn find_path(&self, start: &str, end: &str) -> Option<Vec<String>> {
+    fn find_path(&self, start: &str, end: &str) -> Option<Vec<String>> {
         self.graph.find_path(start, end)
     }
 
-    pub fn get_parents(&self, profile_name: &str) -> Option<Vec<String>> {
+    fn get_parents(&self, profile_name: &str) -> Option<Vec<String>> {
         self.graph.get_parents(profile_name)
     }
 
     /// Add dependency edge (more efficient than rebuild for single additions)
-    pub fn add_dependency_edge(
-        &mut self,
-        parent: &str,
-        child: &str,
-    ) -> Result<(), DependencyError> {
+    fn add_dependency_edge(&mut self, parent: &str, child: &str) -> Result<(), DependencyError> {
         self.graph.add_dependency(parent, child)
     }
 
     /// Remove dependency edge (more efficient than rebuild for single removals)
-    pub fn remove_dependency_edge(
-        &mut self,
-        parent: &str,
-        child: &str,
-    ) -> Result<(), DependencyError> {
+    fn remove_dependency_edge(&mut self, parent: &str, child: &str) -> Result<(), DependencyError> {
         self.graph.remove_dependency(parent, child)
     }
 
     /// Add a new profile node to graph
-    pub fn add_profile_node(&mut self, name: String) {
+    fn add_profile_node(&mut self, name: String) {
         self.graph.add_node(name);
     }
 
     /// Remove a profile node from graph
-    pub fn remove_profile_node(&mut self, name: &str) -> Result<(), DependencyError> {
+    fn remove_profile_node(&mut self, name: &str) -> Result<(), DependencyError> {
         self.graph.remove_node(name)
     }
 
     /// Rename a profile node in graph
-    pub fn rename_profile_node(
+    fn rename_profile_node(
         &mut self,
         old_name: &str,
         new_name: String,
@@ -122,13 +110,9 @@ impl ConfigManager {
         let profiles_path = base_path.join("profiles");
         fs::create_dir_all(&profiles_path)?;
 
-        let profiles = loader::load_profiles_from_dir(&profiles_path)?;
-        let graph = ProfileGraph::build(&profiles)?;
-
-        for profile_name in profiles.keys() {
-            graph.resolve_dependencies(profile_name)?;
-        }
-
+        // Lazy load: Start with empty profiles and graph
+        let profiles = HashMap::new();
+        let graph = ProfileGraph::new();
         let app_config = AppConfig::new(profiles, graph);
 
         Ok(Self {
@@ -137,7 +121,81 @@ impl ConfigManager {
         })
     }
 
-    // === Profile query methods ===
+    /// Creates a ConfigManager and loads all profiles immediately.
+    /// This restores the original behavior where all profiles are loaded at startup.
+    pub fn new_full() -> Result<Self, Box<dyn Error>> {
+        let mut manager = Self::new()?;
+        manager.load_all_profiles()?;
+        Ok(manager)
+    }
+
+    pub fn load_profile(&mut self, name: &str) -> Result<(), DependencyError> {
+        self.load_profile_recursive(name, &mut std::collections::HashSet::new())
+    }
+
+    fn load_profile_recursive(
+        &mut self,
+        name: &str,
+        visiting: &mut std::collections::HashSet<String>,
+    ) -> Result<(), DependencyError> {
+        if self.app_config.has_profile(name) {
+            return Ok(());
+        }
+
+        if visiting.contains(name) {
+            return Ok(());
+        }
+
+        visiting.insert(name.to_string());
+
+        // Load from file
+        let profile = loader::load_profile_from_file(&self.base_path, name).map_err(|_| {
+            // Mapping IO error (or custom error from loader) to DependencyError
+            DependencyError::ProfileNotFound(name.to_string())
+        })?;
+
+        // Ensure node exists in graph
+        self.app_config.add_profile_node(name.to_string());
+
+        let mut errors = Vec::new();
+
+        // Load dependencies
+        for dep_name in &profile.profiles {
+            if let Err(e) = self.load_profile_recursive(dep_name, visiting) {
+                errors.push(DependencyError::DependencyChain {
+                    profile: name.to_string(),
+                    cause: Box::new(e),
+                });
+            } else {
+                // Add dependency edge only if load succeeded (or cycle check passed)
+                // If load failed, adding edge might cause noise or be impossible if node missing.
+                if let Err(e) = self.app_config.add_dependency_edge(name, dep_name) {
+                    errors.push(e);
+                }
+            }
+        }
+
+        if !errors.is_empty() {
+            visiting.remove(name);
+            if errors.len() == 1 {
+                return Err(errors.pop().unwrap());
+            }
+            return Err(DependencyError::MultipleErrors(errors));
+        }
+
+        self.app_config.add_profile(name.to_string(), profile);
+        visiting.remove(name);
+        Ok(())
+    }
+
+    pub fn load_all_profiles(&mut self) -> Result<(), Box<dyn Error>> {
+        let names = self.scan_profile_names()?;
+        for name in names.iter() {
+            self.load_profile(name)?;
+        }
+        Ok(())
+    }
+
     pub fn get_profile(&self, name: &str) -> Option<&Profile> {
         self.app_config.get_profile(name)
     }
@@ -151,10 +209,15 @@ impl ConfigManager {
     }
 
     pub fn list_profile_names(&self) -> ProfileNames {
-        ProfileNames(self.app_config.profile_names())
+        let names = self.app_config.profile_names();
+        ProfileNames(names)
     }
 
-    // === Profile modification methods ===
+    pub fn scan_profile_names(&self) -> Result<ProfileNames, Box<dyn Error>> {
+        let names = loader::scan_profile_names(&self.base_path.join("profiles"))?;
+        Ok(ProfileNames(names))
+    }
+
     pub fn add_profile(&mut self, name: String, profile: Profile) {
         self.app_config.add_profile(name, profile);
     }
@@ -188,7 +251,6 @@ impl ConfigManager {
         }
     }
 
-    // === Batch access ===
     pub fn profiles_iter(&self) -> impl Iterator<Item = (&String, &Profile)> {
         self.app_config.profiles_iter()
     }
@@ -197,7 +259,6 @@ impl ConfigManager {
         self.app_config.profiles_iter_mut()
     }
 
-    // === Graph methods ===
     pub fn resolve_dependencies(&self, profile_name: &str) -> Result<Vec<String>, DependencyError> {
         self.app_config.resolve_dependencies(profile_name)
     }
@@ -253,7 +314,6 @@ impl ConfigManager {
         Ok(())
     }
 
-    // === Persistence methods ===
     pub fn write_profile(&self, name: &str, profile: &Profile) -> Result<(), Box<dyn Error>> {
         loader::write_profile(&self.base_path, name, profile)
     }
@@ -270,7 +330,6 @@ impl ConfigManager {
         loader::rename_profile_file(&self.base_path, old_name, new_name)
     }
 
-    // === Global config ===
     pub fn read_global(&self) -> Result<Profile, Box<dyn Error>> {
         loader::read_global_config(&self.base_path)
     }
@@ -279,7 +338,6 @@ impl ConfigManager {
         loader::write_global_config(&self.base_path, global)
     }
 
-    // === Internal access ===
     pub fn base_path(&self) -> &std::path::Path {
         &self.base_path
     }

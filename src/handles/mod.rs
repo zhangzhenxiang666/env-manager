@@ -2,7 +2,9 @@ use crate::cli::Cli;
 use crate::cli::Commands::{Activate, Deactivate, Global, Init, Profile, Status, Ui};
 
 mod activate;
+mod check;
 mod deactivate;
+mod fix;
 mod global;
 mod init;
 mod profile;
@@ -18,5 +20,7 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
         Global(global_commands) => global::handle(global_commands),
         Status(status_args) => status::handle(status_args),
         Ui => ui::handle(),
+        crate::cli::Commands::Check => check::handle(),
+        crate::cli::Commands::Fix => fix::handle(),
     }
 }

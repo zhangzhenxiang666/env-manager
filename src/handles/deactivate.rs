@@ -4,7 +4,7 @@ use crate::utils::display;
 use std::collections::HashMap;
 
 pub fn handle(items: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
-    let config_manager = ConfigManager::new()?;
+    let mut config_manager = ConfigManager::new()?;
 
     //  Separate direct key-value pairs from profile names
     let (key_value_items, profile_items): (Vec<_>, Vec<_>) =
@@ -13,10 +13,11 @@ pub fn handle(items: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let mut vars = HashMap::new();
 
     for profile_name in &profile_items {
+        config_manager.load_profile(profile_name)?;
         vars.extend(
             config_manager
                 .get_profile(profile_name)
-                .ok_or_else(|| format!("Profile `{profile_name}` not found during activation"))?
+                .unwrap()
                 .collect_vars(&config_manager)?,
         );
     }
