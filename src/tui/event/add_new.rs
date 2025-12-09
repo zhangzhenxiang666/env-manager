@@ -21,7 +21,7 @@ fn handle_editing_mode(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Enter => handle_editing_enter(app),
         KeyCode::Tab => handle_editing_tab(app),
-        KeyCode::BackTab => handle_editing_tab(app), // BackTab behaves same as Tab for 2 columns
+        KeyCode::BackTab => handle_editing_tab(app),
         KeyCode::Esc => handle_editing_esc(app),
         _ => handle_editing_input(app, key.code),
     }
@@ -76,11 +76,19 @@ fn handle_editing_input(app: &mut App, key_code: KeyCode) {
         KeyCode::Char(c) => {
             if let Some(input) = add_new.get_focused_variable_input_mut() {
                 input.enter_char(c);
+
+                if add_new.variable_column_focus() == AddNewVariableFocus::Key {
+                    validate_variable_key_input(add_new);
+                }
             }
         }
         KeyCode::Backspace => {
             if let Some(input) = add_new.get_focused_variable_input_mut() {
                 input.delete_char();
+
+                if add_new.variable_column_focus() == AddNewVariableFocus::Key {
+                    validate_variable_key_input(add_new);
+                }
             }
         }
         KeyCode::Left => {

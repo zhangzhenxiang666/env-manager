@@ -67,18 +67,13 @@ impl std::fmt::Display for DependencyError {
             DependencyError::ProfileNotFound(profile) => {
                 write!(f, "Profile '{profile}' not found.")
             }
-            DependencyError::DependencyChain { profile, cause } => {
-                // Should be unreachable due to unwind_error, but handled for safety
-                write!(f, "In profile '{profile}': {cause}")
-            }
+            DependencyError::DependencyChain { .. } => unreachable!(),
             DependencyError::MultipleErrors(errors) => {
                 // This can happen if MultipleErrors is nested inside DependencyChain
                 // In this case, we're at the end of a trace pointing to a multiple error block
                 for (i, err) in errors.iter().enumerate() {
                     if i > 0 {
                         writeln!(f)?;
-                        // Indent subsequent errors to align with trace?
-                        // Or just print them.
                     }
                     write!(f, "{err}")?; // Recurse
                 }
@@ -261,8 +256,6 @@ impl ProfileGraph {
     }
 
     /// Add a dependency edge from parent to child
-    /// This is more efficient than rebuilding the entire graph when you know
-    /// the edge won't create a cycle (e.g., after UI validation)
     pub fn add_dependency(&mut self, parent: &str, child: &str) -> Result<(), DependencyError> {
         let &parent_index = self
             .profile_nodes

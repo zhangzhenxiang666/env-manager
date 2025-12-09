@@ -1,9 +1,7 @@
-use std::collections::HashMap;
+use super::models::Profile;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
-
-use crate::config::models::Profile;
 
 pub fn scan_profile_names(path: &Path) -> Result<Vec<String>, Box<dyn Error>> {
     let mut names = Vec::new();
@@ -13,10 +11,11 @@ pub fn scan_profile_names(path: &Path) -> Result<Vec<String>, Box<dyn Error>> {
     for entry in fs::read_dir(path)? {
         let entry = entry?;
         let path = entry.path();
-        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("toml") {
-            if let Some(profile_name) = path.file_stem().and_then(|s| s.to_str()) {
-                names.push(profile_name.to_string());
-            }
+        if path.is_file()
+            && path.extension().and_then(|s| s.to_str()) == Some("toml")
+            && let Some(profile_name) = path.file_stem().and_then(|s| s.to_str())
+        {
+            names.push(profile_name.to_string());
         }
     }
     Ok(names)
@@ -51,17 +50,6 @@ pub fn write_global_config(base_path: &Path, global: &Profile) -> Result<(), Box
     let content = toml::to_string_pretty(global)?;
     fs::write(path, content)?;
     Ok(())
-}
-
-pub fn read_profile<'a>(profiles: &'a HashMap<String, Profile>, name: &str) -> Option<&'a Profile> {
-    profiles.get(name)
-}
-
-pub fn read_profile_mut<'a>(
-    profiles: &'a mut HashMap<String, Profile>,
-    name: &str,
-) -> Option<&'a mut Profile> {
-    profiles.get_mut(name)
 }
 
 pub fn write_profile(

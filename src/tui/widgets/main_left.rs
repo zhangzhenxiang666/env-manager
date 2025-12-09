@@ -19,8 +19,8 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
         .map(|name| {
             let display_text = if app.list_component.is_dirty(name) {
                 vec![
-                    Span::from(name.as_str()),
                     Span::styled("*", Theme::new().text_highlight()),
+                    Span::from(name.as_str()),
                 ]
             } else {
                 vec![Span::from(name.as_str())]

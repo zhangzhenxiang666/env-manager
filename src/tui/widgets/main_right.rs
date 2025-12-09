@@ -315,54 +315,54 @@ fn render_edit_mode(frame: &mut Frame, area: Rect, app: &App, profile_name: &str
     );
 
     // Render variable input popup if editing
-    if edit.is_editing() {
-        if let Some(input_state) = edit.variable_input_state() {
-            let table_inner_area = variables_block.inner(variables_area);
+    if edit.is_editing()
+        && let Some(input_state) = edit.variable_input_state()
+    {
+        let table_inner_area = variables_block.inner(variables_area);
 
-            let vis_idx = edit
-                .selected_variable_index()
-                .saturating_sub(render_scroll_offset);
+        let vis_idx = edit
+            .selected_variable_index()
+            .saturating_sub(render_scroll_offset);
 
-            // Position: table_inner_area.y + header row (2 lines) + visual row index
-            let row_y = table_inner_area.y + 2 + vis_idx as u16;
+        // Position: table_inner_area.y + header row (2 lines) + visual row index
+        let row_y = table_inner_area.y + 2 + vis_idx as u16;
 
-            let is_key_focused = input_state.is_key_focused;
+        let is_key_focused = input_state.is_key_focused;
 
-            let col_index = if is_key_focused { 0 } else { 1 };
+        let col_index = if is_key_focused { 0 } else { 1 };
 
-            let layout = Layout::horizontal(col_widths).spacing(1);
-            let column_chunks = layout.split(table_inner_area);
-            let cell_area = column_chunks[col_index];
+        let layout = Layout::horizontal(col_widths).spacing(1);
+        let column_chunks = layout.split(table_inner_area);
+        let cell_area = column_chunks[col_index];
 
-            let popup_area = Rect {
-                x: cell_area.x.saturating_sub(1),
-                y: row_y.saturating_sub(1),
-                width: cell_area.width + 2,
-                height: 3,
-            };
+        let popup_area = Rect {
+            x: cell_area.x.saturating_sub(1),
+            y: row_y.saturating_sub(1),
+            width: cell_area.width + 2,
+            height: 3,
+        };
 
-            let title = if is_key_focused {
-                "Edit Variable"
-            } else {
-                "Edit Value"
-            };
+        let title = if is_key_focused {
+            "Edit Variable"
+        } else {
+            "Edit Value"
+        };
 
-            // Create temporary Input for rendering
-            let temp_input = crate::tui::utils::Input::from_parts(
-                input_state.text.to_string(),
-                input_state.cursor_pos,
-                input_state.error.map(|s| s.to_string()),
-            );
+        // Create temporary Input for rendering
+        let temp_input = crate::tui::utils::Input::from_parts(
+            input_state.text.to_string(),
+            input_state.cursor_pos,
+            input_state.error.map(|s| s.to_string()),
+        );
 
-            render_variable_input_popup(frame, popup_area, &temp_input, title, theme);
-        }
+        render_variable_input_popup(frame, popup_area, &temp_input, title, theme);
     }
 
     // Render dependency selector if open
-    if edit.is_dependency_selector_open() {
-        if let Some(selector_state) = edit.dependency_selector_state() {
-            render_dependency_selector(frame, selector_state, theme);
-        }
+    if edit.is_dependency_selector_open()
+        && let Some(selector_state) = edit.dependency_selector_state()
+    {
+        render_dependency_selector(frame, selector_state, theme);
     }
 }
 
@@ -388,10 +388,10 @@ fn render_variable_input_popup(
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    if !input.is_valid() {
-        if let Some(err) = input.error_message() {
-            block = block.title_bottom(Line::from(err).style(theme.text_error()).right_aligned());
-        }
+    if !input.is_valid()
+        && let Some(err) = input.error_message()
+    {
+        block = block.title_bottom(Line::from(err).style(theme.text_error()).right_aligned());
     }
 
     let inner_area = block.inner(area);

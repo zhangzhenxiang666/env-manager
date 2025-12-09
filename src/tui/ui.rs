@@ -3,6 +3,7 @@ use super::widgets::{add_new_popup, bottom, confirm_delete_popup, header, main_l
 use crate::tui::app::AppState;
 use crate::tui::widgets::main_right;
 use ratatui::prelude::*;
+use unicode_width::UnicodeWidthStr;
 
 pub fn ui(frame: &mut Frame<'_>, app: &App) {
     let layout = Layout::vertical([
@@ -12,8 +13,11 @@ pub fn ui(frame: &mut Frame<'_>, app: &App) {
     ])
     .split(frame.area());
 
+    let required_width = calculate_main_left_width(app);
+
     let main_windown =
-        Layout::horizontal([Constraint::Min(5), Constraint::Fill(1)]).split(layout[1]);
+        Layout::horizontal([Constraint::Length(required_width), Constraint::Fill(1)])
+            .split(layout[1]);
 
     header::render(frame, layout[0], app);
     main_left::render(frame, main_windown[0], app);
@@ -29,4 +33,36 @@ pub fn ui(frame: &mut Frame<'_>, app: &App) {
         }
         _ => {}
     }
+}
+
+fn calculate_main_left_width(app: &App) -> u16 {
+    let profiles = app.list_component.filtered_profiles();
+    let max_len = profiles
+        .iter()
+        .map(|name| UnicodeWidthStr::width(name.as_str()))
+        .max()
+        .unwrap_or(0);
+
+    // Calculate title widths to prevent truncation
+    let filtered_count = profiles.len();
+    let current_index = app.list_component.selected_index() + 1;
+    let title_str = if filtered_count == 0 {
+        "Profile List (0/0)".to_string()
+    } else {
+        format!("Profile List ({}/{})", current_index, filtered_count)
+    };
+    let title_width = UnicodeWidthStr::width(title_str.as_str());
+
+    let unsaved_count = app.list_component.unsaved_count();
+    let unsaved_width = if unsaved_count > 0 {
+        UnicodeWidthStr::width(format!("Unsaved: {}", unsaved_count).as_str())
+    } else {
+        0
+    };
+
+    // +4 for borders/gap between titles
+    let min_title_width = title_width + unsaved_width + 4;
+    let content_width = max_len + 6;
+
+    (content_width.max(min_title_width)).clamp(25, 60) as u16
 }

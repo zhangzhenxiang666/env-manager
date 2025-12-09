@@ -5,10 +5,6 @@ use crate::tui::{
 };
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
-// ============================================================================
-// Main Entry Point
-// ============================================================================
-
 pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Error>> {
     if app.edit_component.is_dependency_selector_open() {
         handle_dependency_selector(app, key);
@@ -22,10 +18,6 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
     }
     Ok(())
 }
-
-// ============================================================================
-// Dependency Selector (Popup for adding dependencies)
-// ============================================================================
 
 fn handle_dependency_selector(app: &mut App, key: KeyEvent) {
     if let Some(selected_deps) = app.edit_component.handle_selector_input(key) {
@@ -107,10 +99,6 @@ fn open_dependency_selector(app: &mut App) {
     app.edit_component.open_dependency_selector(available);
 }
 
-// ============================================================================
-// Variable Editing Mode (when user is editing a variable's key/value)
-// ============================================================================
-
 fn handle_variable_editing_mode(app: &mut App, key: KeyEvent) {
     match key.code {
         KeyCode::Enter => confirm_and_maybe_switch_column(app),
@@ -174,18 +162,26 @@ fn handle_text_input(app: &mut App, key_code: KeyCode) {
 
     if let Some(input) = edit.get_focused_variable_input_mut() {
         match key_code {
-            KeyCode::Char(c) => input.enter_char(c),
-            KeyCode::Backspace => input.delete_char(),
+            KeyCode::Char(c) => {
+                input.enter_char(c);
+
+                if edit.variable_column_focus() == EditVariableFocus::Key {
+                    validate_variable_key(edit);
+                }
+            }
+            KeyCode::Backspace => {
+                input.delete_char();
+
+                if edit.variable_column_focus() == EditVariableFocus::Key {
+                    validate_variable_key(edit);
+                }
+            }
             KeyCode::Left => input.move_cursor_left(),
             KeyCode::Right => input.move_cursor_right(),
-            _ => {}
+            _ => edit.confirm_editing_variable(),
         }
     }
 }
-
-// ============================================================================
-// Navigation Mode (normal editing, not editing a specific variable)
-// ============================================================================
 
 fn handle_navigation_mode(app: &mut App, key: KeyEvent) {
     match key.code {
@@ -265,10 +261,6 @@ fn open_dependency_selector_if_in_profiles(app: &mut App) {
         open_dependency_selector(app);
     }
 }
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
 
 /// Validate variable key (non-empty, no spaces, not start with digit)
 fn validate_variable_key(edit: &mut EditComponent) -> bool {

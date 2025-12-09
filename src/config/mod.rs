@@ -208,6 +208,7 @@ impl ConfigManager {
         self.app_config.has_profile(name)
     }
 
+    /// Unlike `scan_profile_names`, it simply returns the set of profile names that are currently loaded
     pub fn list_profile_names(&self) -> ProfileNames {
         let names = self.app_config.profile_names();
         ProfileNames(names)

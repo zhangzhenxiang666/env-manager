@@ -8,7 +8,7 @@ pub fn handle(global_commands: GlobalCommands) -> Result<(), Box<dyn std::error:
     match global_commands {
         List { expand } => list(expand, &mut config_manager),
         Add { items } => add(items, &mut config_manager),
-        Remove { items } => remove(items, &mut config_manager),
+        Remove { items } => remove(items, &config_manager),
         Clean => clean(&mut config_manager),
     }
 }
@@ -31,7 +31,7 @@ fn list(
 
     if expand {
         eprintln!("Global Config (expand view):");
-        global.display_expand(&config_manager)?;
+        global.display_expand(config_manager)?;
     } else {
         eprintln!("global");
         global.display_simple();
@@ -135,7 +135,7 @@ fn clean(config_manager: &mut ConfigManager) -> Result<(), Box<dyn std::error::E
     for profile in global_profile.profiles.iter() {
         config_manager.load_profile(profile)?;
     }
-    let vars = global_profile.collect_vars(&config_manager)?;
+    let vars = global_profile.collect_vars(config_manager)?;
     let script = utils::env::generate_unset_script(&vars);
 
     global_profile.clear();

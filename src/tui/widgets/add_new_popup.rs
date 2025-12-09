@@ -70,11 +70,11 @@ fn render_name_section(
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    if !add_new.name_input().is_valid() {
-        if let Some(err) = add_new.name_input().error_message() {
-            input_block =
-                input_block.title_bottom(Line::from(err).style(theme.text_error()).right_aligned());
-        }
+    if !add_new.name_input().is_valid()
+        && let Some(err) = add_new.name_input().error_message()
+    {
+        input_block =
+            input_block.title_bottom(Line::from(err).style(theme.text_error()).right_aligned());
     }
 
     let text_input_rect = input_block.inner(area);
@@ -300,55 +300,56 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
     );
 
     // Popup Input Box for editing
-    if is_focused && add_new.is_editing() {
-        if let Some(focused_input) = add_new.get_focused_variable_input() {
-            let table_inner_area = variables_block.inner(area);
-            let row_index = add_new.selected_variable_index();
-            // Visual row calculation might need adjustment depending on how Table handles it implicitly.
-            // But since we are manually calculating overlay position, we need to know where the row is relative to the table block.
-            // Table with offset N means the Nth item is at the top (after header).
+    if is_focused
+        && add_new.is_editing()
+        && let Some(focused_input) = add_new.get_focused_variable_input()
+    {
+        let table_inner_area = variables_block.inner(area);
+        let row_index = add_new.selected_variable_index();
+        // Visual row calculation might need adjustment depending on how Table handles it implicitly.
+        // But since we are manually calculating overlay position, we need to know where the row is relative to the table block.
+        // Table with offset N means the Nth item is at the top (after header).
 
-            let visual_row_index = row_index.saturating_sub(render_variable_scroll);
+        let visual_row_index = row_index.saturating_sub(render_variable_scroll);
 
-            // +2 for border + header_height(1) + bottom_margin(1)?
-            // Default header height is 1 line. With bottom_margin(1), total header area is 2 lines.
-            // So content starts at y + 1 (top border) + 2 (header). = y + 3?
-            // Let's re-verify.
-            // In original code: `row_y = table_inner_area.y + 2 + visual_row_index as u16;`
-            // If table_inner_area is inner of block.
-            // Header is rendered inside block.
-            // If header has bottom_margin(1), it takes 2 lines.
-            // So first data row is at y+2. YES.
+        // +2 for border + header_height(1) + bottom_margin(1)?
+        // Default header height is 1 line. With bottom_margin(1), total header area is 2 lines.
+        // So content starts at y + 1 (top border) + 2 (header). = y + 3?
+        // Let's re-verify.
+        // In original code: `row_y = table_inner_area.y + 2 + visual_row_index as u16;`
+        // If table_inner_area is inner of block.
+        // Header is rendered inside block.
+        // If header has bottom_margin(1), it takes 2 lines.
+        // So first data row is at y+2. YES.
 
-            let row_y = table_inner_area.y + 2 + visual_row_index as u16;
+        let row_y = table_inner_area.y + 2 + visual_row_index as u16;
 
-            let col_index = match add_new.variable_column_focus() {
-                AddNewVariableFocus::Key => 0,
-                AddNewVariableFocus::Value => 1,
-            };
+        let col_index = match add_new.variable_column_focus() {
+            AddNewVariableFocus::Key => 0,
+            AddNewVariableFocus::Value => 1,
+        };
 
-            let layout = Layout::horizontal(col_widths).spacing(1);
-            let column_chunks = layout.split(table_inner_area);
-            let cell_area = column_chunks[col_index];
+        let layout = Layout::horizontal(col_widths).spacing(1);
+        let column_chunks = layout.split(table_inner_area);
+        let cell_area = column_chunks[col_index];
 
-            // Overlay the cell. Expand slightly width wise for border?
-            // Original code was: x-1, y-1, width+2, height=3.
-            // This centers the edit box 1 char outside the cell to cover borders if any, or just be prominent.
+        // Overlay the cell. Expand slightly width wise for border?
+        // Original code was: x-1, y-1, width+2, height=3.
+        // This centers the edit box 1 char outside the cell to cover borders if any, or just be prominent.
 
-            let popup_area = Rect {
-                x: cell_area.x.saturating_sub(1),
-                y: row_y.saturating_sub(1),
-                width: cell_area.width + 2,
-                height: 3,
-            };
+        let popup_area = Rect {
+            x: cell_area.x.saturating_sub(1),
+            y: row_y.saturating_sub(1),
+            width: cell_area.width + 2,
+            height: 3,
+        };
 
-            let title = match add_new.variable_column_focus() {
-                AddNewVariableFocus::Key => "Edit Variable",
-                AddNewVariableFocus::Value => "Edit Value",
-            };
+        let title = match add_new.variable_column_focus() {
+            AddNewVariableFocus::Key => "Edit Variable",
+            AddNewVariableFocus::Value => "Edit Value",
+        };
 
-            render_variable_input_popup(frame, popup_area, focused_input, title, theme);
-        }
+        render_variable_input_popup(frame, popup_area, focused_input, title, theme);
     }
 }
 
@@ -372,10 +373,10 @@ fn render_variable_input_popup(
         .borders(Borders::ALL)
         .border_style(border_style);
 
-    if !input.is_valid() {
-        if let Some(err) = input.error_message() {
-            block = block.title_bottom(Line::from(err).style(theme.text_error()).right_aligned());
-        }
+    if !input.is_valid()
+        && let Some(err) = input.error_message()
+    {
+        block = block.title_bottom(Line::from(err).style(theme.text_error()).right_aligned());
     }
 
     let inner_area = block.inner(area);

@@ -4,7 +4,6 @@ use crate::tui::utils::Input;
 
 #[derive(Default)]
 pub struct ListComponent {
-    // Private fields - encapsulated state
     profile_names: Vec<String>,
     selected_index: usize,
     dirty_profiles: HashSet<String>,
@@ -17,8 +16,6 @@ impl ListComponent {
     pub fn new() -> Self {
         Default::default()
     }
-
-    // === Profile Management ===
 
     /// Get the currently selected profile name
     pub fn current_profile(&self) -> Option<&str> {
@@ -69,8 +66,6 @@ impl ListComponent {
         }
     }
 
-    // === Navigation ===
-
     pub fn next(&mut self) {
         let filtered = self.filtered_profiles();
         if filtered.is_empty() {
@@ -90,8 +85,6 @@ impl ListComponent {
         let i = (self.selected_index + filtered.len() - 1) % filtered.len();
         self.selected_index = i;
     }
-
-    // === Dirty Tracking ===
 
     /// Check if a specific profile has unsaved changes
     pub fn is_dirty(&self, name: &str) -> bool {
@@ -117,8 +110,6 @@ impl ListComponent {
     pub fn dirty_profiles_iter(&self) -> impl Iterator<Item = &String> {
         self.dirty_profiles.iter()
     }
-
-    // === Search Mode ===
 
     pub fn is_searching(&self) -> bool {
         self.in_search_mode
@@ -157,13 +148,6 @@ impl ListComponent {
     /// Get reference to search input for rendering
     pub fn search_input(&self) -> &Input {
         &self.search_input
-    }
-
-    // === Rename Mode ===
-
-    pub fn is_renaming(&self) -> bool {
-        // Rename mode is managed by AppState, but we expose input access
-        false // This is determined by app.state == AppState::Rename
     }
 
     pub fn start_rename(&mut self) {

@@ -25,11 +25,11 @@ pub fn handle(items: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     // Add direct key-value pairs, potentially overwriting profile variables
     let mut direct_keys = Vec::new();
     for item in key_value_items {
-        if let Some((key, value)) = item.split_once('=') {
-            if !key.is_empty() {
-                vars.insert(key.to_string(), value.to_string());
-                direct_keys.push(key.to_string());
-            }
+        if let Some((key, value)) = item.split_once('=')
+            && !key.is_empty()
+        {
+            vars.insert(key.to_string(), value.to_string());
+            direct_keys.push(key.to_string());
         }
     }
 

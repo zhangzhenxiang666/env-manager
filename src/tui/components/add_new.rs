@@ -20,10 +20,8 @@ pub enum AddNewVariableFocus {
     Value,
 }
 
-// A form to store state for the 'AddNew' popup
 #[derive(Default)]
 pub struct AddNewComponent {
-    // All fields are private - encapsulated state
     name_input: Input,
 
     // Profiles section
@@ -62,8 +60,6 @@ impl AddNewComponent {
         self.focus = AddNewFocus::default();
     }
 
-    // === View State Queries ===
-
     pub fn current_focus(&self) -> AddNewFocus {
         self.focus
     }
@@ -76,8 +72,6 @@ impl AddNewComponent {
         self.variable_column_focus
     }
 
-    // === Name Section ===
-
     pub fn name_input(&self) -> &Input {
         &self.name_input
     }
@@ -85,8 +79,6 @@ impl AddNewComponent {
     pub fn name_input_mut(&mut self) -> &mut Input {
         &mut self.name_input
     }
-
-    // === Focus Management ===
 
     pub fn switch_focus(&mut self, forward: bool) {
         self.focus = if forward {
@@ -103,8 +95,6 @@ impl AddNewComponent {
             }
         };
     }
-
-    // === Profiles Section ===
 
     pub fn profiles_selection_index(&self) -> usize {
         self.profiles_selection_index
@@ -181,8 +171,6 @@ impl AddNewComponent {
 
         scroll_offset
     }
-
-    // === Variables Section ===
 
     pub fn variables_count(&self) -> usize {
         self.variables.len()
@@ -291,11 +279,10 @@ impl AddNewComponent {
 
     pub fn cancel_editing_variable(&mut self) {
         if self.is_editing_variable {
-            // Extract buffer first to avoid borrow conflict
-            if let Some(buf) = self.pre_edit_buffer.take() {
-                if let Some(input) = self.get_focused_variable_input_mut() {
-                    input.set_text(buf);
-                }
+            if let Some(buf) = self.pre_edit_buffer.take()
+                && let Some(input) = self.get_focused_variable_input_mut()
+            {
+                input.set_text(buf);
             }
             self.is_editing_variable = false;
         }

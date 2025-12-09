@@ -1,7 +1,7 @@
-use std::collections::HashSet;
-
-use crate::{config::models::Profile, tui::utils::Input};
+use crate::config::models::Profile;
+use crate::tui::utils::Input;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
+use std::collections::HashSet;
 
 #[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum EditFocus {
@@ -17,7 +17,6 @@ pub enum EditVariableFocus {
     Value,
 }
 
-// Private internal state for dependency selector (formerly SelectPopup)
 #[derive(Default)]
 struct DependencySelector {
     options: Vec<String>,
@@ -81,7 +80,6 @@ impl DependencySelector {
     }
 }
 
-// Public render state for widgets
 pub struct DependencySelectorState<'a> {
     pub title: &'static str,
     pub options: &'a [String],
@@ -89,7 +87,6 @@ pub struct DependencySelectorState<'a> {
     pub selected_indices: &'a HashSet<usize>,
 }
 
-// Public state for variable input rendering
 pub struct VariableInputState<'a> {
     pub text: &'a str,
     pub cursor_pos: usize,
@@ -119,7 +116,7 @@ pub struct EditComponent {
     // Profile name (for display)
     profile_name: String,
 
-    // Dependency selector (formerly SelectPopup)
+    // Dependency selector
     dependency_selector: DependencySelector,
     show_dependency_selector: bool,
 
@@ -129,6 +126,9 @@ pub struct EditComponent {
 }
 
 impl EditComponent {
+    pub const MAX_VARIABLES_HEIGHT: usize = 5;
+    pub const MAX_PROFILES_HEIGHT: usize = 3;
+
     pub fn new() -> Self {
         Default::default()
     }
@@ -189,15 +189,6 @@ impl EditComponent {
         }
     }
 
-    // === Config ===
-    // Use conservative (small) values to ensure scrolling works correctly on all screen sizes
-    // These are used as defaults in event handling when actual viewport size is unknown
-    // The actual visible rows will be calculated dynamically during rendering
-    pub const MAX_VARIABLES_HEIGHT: usize = 5;
-    pub const MAX_PROFILES_HEIGHT: usize = 3;
-
-    // === View State Queries ===
-
     pub fn current_focus(&self) -> EditFocus {
         self.focus
     }
@@ -219,18 +210,16 @@ impl EditComponent {
 
         // Check if any variable content changed
         for (i, (k, v)) in self.variables.iter().enumerate() {
-            if let Some((orig_k, orig_v)) = self.original_variables.get(i) {
-                if k.text() != orig_k || v.text() != orig_v {
-                    return true;
-                }
+            if let Some((orig_k, orig_v)) = self.original_variables.get(i)
+                && (k.text() != orig_k || v.text() != orig_v)
+            {
+                return true;
             }
         }
 
         // Check if profiles changed
         self.profiles != self.original_profiles
     }
-
-    // === Variables Section ===
 
     /// Get iterator over variables (key, value) pairs for rendering
     pub fn variables(&self) -> impl Iterator<Item = (&str, &str)> {
@@ -379,10 +368,10 @@ impl EditComponent {
 
     pub fn cancel_editing_variable(&mut self) {
         if self.is_editing_variable {
-            if let Some(buf) = self.pre_edit_buffer.take() {
-                if let Some(input) = self.get_focused_variable_input_mut() {
-                    input.set_text(buf);
-                }
+            if let Some(buf) = self.pre_edit_buffer.take()
+                && let Some(input) = self.get_focused_variable_input_mut()
+            {
+                input.set_text(buf);
             }
             self.is_editing_variable = false;
         }
@@ -414,8 +403,6 @@ impl EditComponent {
             false
         }
     }
-
-    // === Profiles Section ===
 
     pub fn profiles(&self) -> &[String] {
         &self.profiles
@@ -509,8 +496,6 @@ impl EditComponent {
             EditFocus::Profiles => EditFocus::Variables,
         };
     }
-
-    // === Dependency Selector (formerly SelectPopup) ===
 
     pub fn is_dependency_selector_open(&self) -> bool {
         self.show_dependency_selector

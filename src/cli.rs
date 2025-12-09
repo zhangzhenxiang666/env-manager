@@ -1,4 +1,16 @@
+use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::{Args, Parser, Subcommand};
+
+fn styles() -> Styles {
+    Styles::styled()
+        .header(AnsiColor::Green.on_default() | Effects::BOLD)
+        .usage(AnsiColor::Green.on_default() | Effects::BOLD)
+        .literal(AnsiColor::BrightCyan.on_default() | Effects::BOLD)
+        .placeholder(AnsiColor::BrightCyan.on_default())
+        .error(AnsiColor::BrightRed.on_default() | Effects::BOLD)
+        .valid(AnsiColor::BrightCyan.on_default() | Effects::BOLD)
+        .invalid(AnsiColor::BrightYellow.on_default() | Effects::BOLD)
+}
 
 #[derive(Parser, Debug)]
 #[command(
@@ -8,7 +20,8 @@ use clap::{Args, Parser, Subcommand};
     version = env!("CARGO_PKG_VERSION"),
     about = "A powerful, profile-based environment manager",
     long_about = None,
-    color = clap::ColorChoice::Always
+    color = clap::ColorChoice::Auto,
+    styles = styles()
 )]
 pub struct Cli {
     #[command(subcommand)]

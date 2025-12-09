@@ -148,10 +148,10 @@ pub fn validate_non_empty(text: &str) -> std::result::Result<(), String> {
 }
 
 pub fn validate_starts_with_non_digit(text: &str) -> std::result::Result<(), String> {
-    if let Some(first_char) = text.chars().next() {
-        if first_char.is_ascii_digit() {
-            return Err("Cannot start with a digit".to_string());
-        }
+    if let Some(first_char) = text.chars().next()
+        && first_char.is_ascii_digit()
+    {
+        return Err("Cannot start with a digit".to_string());
     }
     Ok(())
 }

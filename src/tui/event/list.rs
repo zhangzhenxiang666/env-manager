@@ -73,10 +73,10 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
                 list_component.enter_search_mode();
             }
             KeyCode::Char('j') | KeyCode::Down => {
-                app.next();
+                app.list_component.next();
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                app.previous();
+                app.list_component.previous();
             }
             KeyCode::Enter => {
                 if let Some(name) = list_component.current_profile() {
