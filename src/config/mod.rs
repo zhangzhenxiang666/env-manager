@@ -342,4 +342,14 @@ impl ConfigManager {
     pub fn base_path(&self) -> &std::path::Path {
         &self.base_path
     }
+
+    /// Checks whether a profile with the specified name exists on disk
+    ///
+    /// Unlike `has_profile`, which only checks if the profile is loaded in memory,
+    /// this method actually verifies the existence of the corresponding `.toml` file
+    /// in the filesystem.
+    pub fn profile_exists(&self, name: &str) -> bool {
+        let path = self.base_path.join("profiles").join(format!("{name}.toml"));
+        path.exists()
+    }
 }

@@ -5,12 +5,12 @@ use ratatui::{
     },
 };
 
-use crate::config::models::Profile;
 use crate::tui::{
     app::{App, AppState},
     components::edit::{EditFocus, EditVariableFocus},
     theme::Theme,
 };
+use crate::{GLOBAL_PROFILE_MARK, config::models::Profile};
 
 pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let theme = Theme::new();
@@ -24,19 +24,25 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let selected_name =
         app.list_component.all_profiles()[app.list_component.selected_index()].clone();
 
+    let display_name = if selected_name == GLOBAL_PROFILE_MARK {
+        "GLOBAL"
+    } else {
+        &selected_name
+    };
     // Check if we are in Edit mode
     if app.state == AppState::Edit {
-        render_edit_mode(frame, area, app, &selected_name, &theme);
+        render_edit_mode(frame, area, app, display_name, &theme);
     } else {
         // View Mode
         let profile = match app.config_manager.get_profile(&selected_name) {
             Some(p) => p,
             None => {
-                render_error_state(frame, area, &selected_name, &theme);
+                render_error_state(frame, area, display_name, &theme);
                 return;
             }
         };
-        render_view_mode(frame, area, &selected_name, profile, &theme);
+
+        render_view_mode(frame, area, display_name, profile, &theme);
     }
 }
 

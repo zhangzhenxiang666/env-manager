@@ -1,11 +1,7 @@
-use crate::{
-    config::models::Profile,
-    tui::{
-        app::{App, AppState},
-        components::add_new::{AddNewComponent, AddNewFocus, AddNewVariableFocus},
-        utils,
-    },
-};
+use crate::config::models::Profile;
+use crate::tui::app::{App, AppState};
+use crate::tui::components::add_new::{AddNewComponent, AddNewFocus, AddNewVariableFocus};
+use crate::tui::utils;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::collections::HashMap;
 
@@ -284,8 +280,6 @@ fn variables(app: &mut App, key_code: KeyCode) {
         _ => {}
     }
 }
-
-// --- Validators ---
 
 fn validate_name(app: &mut App) {
     let input = app.add_new_component.name_input_mut();

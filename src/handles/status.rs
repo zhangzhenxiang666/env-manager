@@ -41,15 +41,17 @@ impl VarStatus {
 }
 
 pub fn handle(args: CommandsStatusArgs) -> Result<(), Box<dyn Error>> {
-    let config_manager = ConfigManager::new()?;
+    let mut config_manager = ConfigManager::new()?;
     for (i, profile_name) in args.profiles.iter().enumerate() {
-        if !config_manager.has_profile(profile_name) {
+        if !config_manager.profile_exists(profile_name) {
             eprintln!(
                 "{}",
                 format!("Warning: Profile '{profile_name}' not found.").yellow()
             );
             continue;
         }
+
+        config_manager.load_profile(profile_name)?;
 
         let profile = config_manager.get_profile(profile_name).unwrap();
         let is_last_profile = i == args.profiles.len() - 1;

@@ -1,14 +1,9 @@
-use ratatui::{
-    Frame,
-    layout::Rect,
-    style::{Color, Style},
-    text::{Line, Span, Text},
-};
-
-use crate::tui::{
-    app::AppState::{self, List},
-    theme::Theme,
-};
+use crate::tui::app::AppState::{self, List};
+use crate::tui::theme::Theme;
+use ratatui::Frame;
+use ratatui::layout::Rect;
+use ratatui::style::{Color, Style};
+use ratatui::text::{Line, Span, Text};
 
 pub fn render(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
     let version_info = Text::from(vec![Line::raw(format!(

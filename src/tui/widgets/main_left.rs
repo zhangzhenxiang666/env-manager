@@ -1,3 +1,4 @@
+use crate::GLOBAL_PROFILE_MARK;
 use ratatui::{
     prelude::*,
     widgets::{
@@ -17,13 +18,18 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let items: Vec<ListItem> = profiles
         .iter()
         .map(|name| {
+            let display_name = if name == GLOBAL_PROFILE_MARK {
+                "GLOBAL"
+            } else {
+                name.as_str()
+            };
             let display_text = if app.list_component.is_dirty(name) {
                 vec![
                     Span::styled("*", Theme::new().text_highlight()),
-                    Span::from(name.as_str()),
+                    Span::from(display_name),
                 ]
             } else {
-                vec![Span::from(name.as_str())]
+                vec![Span::from(display_name)]
             };
             ListItem::new(Text::from(Line::from(display_text)))
         })

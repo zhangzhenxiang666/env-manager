@@ -1,5 +1,7 @@
 use super::app::App;
-use super::widgets::{add_new_popup, bottom, confirm_delete_popup, header, main_left};
+use super::widgets::{
+    add_new_popup, bottom, confirm_delete_popup, confirm_exit_popup, header, main_left,
+};
 use crate::tui::app::AppState;
 use crate::tui::widgets::main_right;
 use ratatui::prelude::*;
@@ -30,6 +32,9 @@ pub fn ui(frame: &mut Frame<'_>, app: &App) {
         }
         AppState::AddNew => {
             add_new_popup::render(frame, app);
+        }
+        AppState::ConfirmExit => {
+            confirm_exit_popup::render(frame, app);
         }
         _ => {}
     }

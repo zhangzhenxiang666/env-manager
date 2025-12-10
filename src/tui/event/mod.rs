@@ -4,6 +4,7 @@ use ratatui::crossterm::event::{self, Event};
 
 mod add_new;
 mod confirm_delete;
+mod confirm_exit;
 mod edit;
 mod list;
 mod rename;
@@ -24,6 +25,7 @@ pub fn handle_event(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
             AppState::AddNew => {
                 add_new::handle(app, key);
             }
+            AppState::ConfirmExit => confirm_exit::handle(app, key)?,
         }
     }
     Ok(())

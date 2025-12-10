@@ -1,6 +1,5 @@
-use std::collections::HashSet;
-
 use crate::tui::utils::Input;
+use std::collections::HashSet;
 
 pub const MAX_HEIGHT: usize = 4;
 pub const MAX_VARIABLES_HEIGHT: usize = 8;

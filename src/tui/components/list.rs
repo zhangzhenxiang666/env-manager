@@ -1,6 +1,6 @@
-use std::collections::HashSet;
-
+use crate::GLOBAL_PROFILE_MARK;
 use crate::tui::utils::Input;
+use std::collections::HashSet;
 
 #[derive(Default)]
 pub struct ListComponent {
@@ -44,7 +44,16 @@ impl ListComponent {
     }
 
     /// Update the profile list (e.g., after adding/removing profiles)
-    pub fn update_profiles(&mut self, profiles: Vec<String>) {
+    pub fn update_profiles(&mut self, mut profiles: Vec<String>) {
+        profiles.sort_by(|a, b| {
+            if a == GLOBAL_PROFILE_MARK {
+                std::cmp::Ordering::Less
+            } else if b == GLOBAL_PROFILE_MARK {
+                std::cmp::Ordering::Greater
+            } else {
+                a.cmp(b)
+            }
+        });
         self.profile_names = profiles;
         // Ensure selected_index is valid
         if self.selected_index >= self.profile_names.len() && !self.profile_names.is_empty() {

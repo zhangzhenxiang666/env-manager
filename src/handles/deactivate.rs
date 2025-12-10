@@ -1,4 +1,3 @@
-use crate::SHELL_MARK;
 use crate::config::ConfigManager;
 use crate::utils;
 use crate::utils::display;
@@ -34,9 +33,9 @@ pub fn handle(items: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // 5. Generate and print the unset script
-    let script = utils::env::generate_unset_script(&vars);
-    println!("{SHELL_MARK}{script}");
+    let mut generate = utils::shell_generate::ShellGenerate::new();
+    generate.unset_from_map(&vars);
+    generate.output();
 
     if !profile_items.is_empty() {
         display::show_success(&format!(

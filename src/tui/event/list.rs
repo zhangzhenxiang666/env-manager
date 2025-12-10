@@ -1,4 +1,7 @@
-use crate::tui::app::{App, AppState};
+use crate::{
+    GLOBAL_PROFILE_MARK,
+    tui::app::{App, AppState},
+};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Error>> {
@@ -67,7 +70,11 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
     } else {
         match key.code {
             KeyCode::Esc => {
-                app.shutdown = true;
+                if app.list_component.unsaved_count() > 0 {
+                    app.state = AppState::ConfirmExit;
+                } else {
+                    app.shutdown = true;
+                }
             }
             KeyCode::Char('/') => {
                 list_component.enter_search_mode();
@@ -91,8 +98,12 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
                 app.save_all()?;
             }
             KeyCode::Char('d') => {
-                if list_component.current_profile().is_some() {
-                    app.state = AppState::ConfirmDelete;
+                if let Some(name) = list_component.current_profile() {
+                    if name == GLOBAL_PROFILE_MARK {
+                        app.status_message = Some("Cannot delete GLOBAL profile".to_string());
+                    } else {
+                        app.state = AppState::ConfirmDelete;
+                    }
                 }
             }
             KeyCode::Char('n') => {
@@ -100,9 +111,13 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
                 app.add_new_component.reset();
             }
             KeyCode::F(2) => {
-                if list_component.current_profile().is_some() {
-                    app.state = AppState::Rename;
-                    list_component.start_rename();
+                if let Some(name) = list_component.current_profile() {
+                    if name == GLOBAL_PROFILE_MARK {
+                        app.status_message = Some("Cannot rename GLOBAL profile".to_string());
+                    } else {
+                        app.state = AppState::Rename;
+                        list_component.start_rename();
+                    }
                 }
             }
             _ => {}

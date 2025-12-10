@@ -39,8 +39,15 @@ fn create(
     name: String,
     config_manager: &mut ConfigManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    if config_manager.load_profile(&name).is_ok() {
+    if config_manager.profile_exists(&name) {
         return Err(format!("Profile `{name}` already exists").into());
+    }
+    if !validate_non_empty(&name) {
+        return Err("Profile name cannot be empty".into());
+    }
+
+    if !validate_starts_with_non_digit(&name) {
+        return Err("Profile name must start with a non-digit character".into());
     }
     let profile = Profile::new();
     config_manager.write_profile(&name, &profile)?;
@@ -57,8 +64,17 @@ fn rename(
         dest_name,
     } = rename_args;
 
-    // Ensure source is loaded
-    let _ = config_manager.load_profile(&src_name);
+    if !validate_non_empty(&dest_name) {
+        return Err("Profile name cannot be empty".into());
+    }
+
+    if !validate_starts_with_non_digit(&dest_name) {
+        return Err("Profile name must start with a non-digit character".into());
+    }
+
+    // Since other profiles may depend on the profile being renamed,
+    // all profiles need to be loaded to update their dependency references
+    config_manager.load_all_profiles()?;
 
     config_manager.rename_profile_file(&src_name, &dest_name)?;
 
@@ -185,4 +201,18 @@ fn remove(
         config_manager.write_profile(&name, profile)?;
     }
     Ok(())
+}
+
+fn validate_non_empty(text: &str) -> bool {
+    text.trim().is_empty()
+}
+
+fn validate_starts_with_non_digit(text: &str) -> bool {
+    if let Some(first_char) = text.chars().next()
+        && first_char.is_ascii_digit()
+    {
+        false
+    } else {
+        true
+    }
 }

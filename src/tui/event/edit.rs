@@ -1,8 +1,7 @@
-use crate::tui::{
-    app::{App, AppState},
-    components::edit::{EditComponent, EditFocus, EditVariableFocus},
-    utils::{validate_no_spaces, validate_non_empty, validate_starts_with_non_digit},
-};
+use crate::GLOBAL_PROFILE_MARK;
+use crate::tui::app::{App, AppState};
+use crate::tui::components::edit::{EditComponent, EditFocus, EditVariableFocus};
+use crate::tui::utils::{validate_no_spaces, validate_non_empty, validate_starts_with_non_digit};
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Error>> {
@@ -27,20 +26,25 @@ fn handle_dependency_selector(app: &mut App, key: KeyEvent) {
 
 fn add_dependencies_to_profile(app: &mut App, dep_names: Vec<String>) {
     let profile_name = app.edit_component.profile_name().to_string();
-
-    for dep_name in dep_names {
-        // Try to add to graph first (validation)
-        match app
-            .config_manager
-            .add_dependency_edge(&profile_name, &dep_name)
-        {
-            Ok(_) => {
-                // Success: update UI component
-                app.edit_component.add_profile_dependency(dep_name);
-            }
-            Err(e) => {
-                // Failed: show error, don't update UI
-                app.status_message = Some(format!("Cannot add dependency '{dep_name}': {e}"));
+    if profile_name == GLOBAL_PROFILE_MARK {
+        dep_names
+            .into_iter()
+            .for_each(|name| app.edit_component.add_profile_dependency(name));
+    } else {
+        for dep_name in dep_names {
+            // Try to add to graph first (validation)
+            match app
+                .config_manager
+                .add_dependency_edge(&profile_name, &dep_name)
+            {
+                Ok(_) => {
+                    // Success: update UI component
+                    app.edit_component.add_profile_dependency(dep_name);
+                }
+                Err(e) => {
+                    // Failed: show error, don't update UI
+                    app.status_message = Some(format!("Cannot add dependency '{dep_name}': {e}"));
+                }
             }
         }
     }
@@ -51,8 +55,9 @@ fn add_dependencies_to_profile(app: &mut App, dep_names: Vec<String>) {
 fn remove_dependency_from_profile(app: &mut App) {
     let profile_name = app.edit_component.profile_name().to_string();
     let selected_idx = app.edit_component.selected_profile_index();
-
-    if let Some(removed_dep) = app.edit_component.profiles().get(selected_idx) {
+    if profile_name == GLOBAL_PROFILE_MARK {
+        app.edit_component.remove_profile_dependency();
+    } else if let Some(removed_dep) = app.edit_component.profiles().get(selected_idx) {
         let removed_dep = removed_dep.clone();
 
         // Update UI component
@@ -92,6 +97,7 @@ fn open_dependency_selector(app: &mut App) {
             name != current_profile           // Exclude self
                 && !existing_deps.contains(p)  // Exclude already added
                 && !ancestors.contains(*p) // Exclude would-be-circular
+                && *p != GLOBAL_PROFILE_MARK // Exclude global
         })
         .cloned()
         .collect();
@@ -297,10 +303,19 @@ fn save_profile_to_memory(app: &mut App) {
     let new_profile = app.edit_component.to_profile();
 
     // Update profile in memory
-    app.config_manager.add_profile(name.clone(), new_profile);
-    app.list_component.mark_dirty(name);
+    // Update profile in memory
+    app.config_manager
+        .add_profile(name.clone(), new_profile.clone());
 
-    // Note: Graph is already updated incrementally when dependencies change
+    if name == GLOBAL_PROFILE_MARK {
+        if let Err(e) = app.config_manager.write_global(&new_profile) {
+            app.status_message = Some(format!("Error saving GLOBAL: {}", e));
+        } else {
+            app.list_component.clear_dirty(&name);
+        }
+    } else {
+        app.list_component.mark_dirty(name);
+    }
 }
 
 /// Mark profile as dirty if there are any changes

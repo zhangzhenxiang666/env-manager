@@ -1,4 +1,3 @@
-use crate::SHELL_MARK;
 use crate::cli::GlobalCommands::{self, Add, Clean, List, Remove};
 use crate::config::ConfigManager;
 use crate::utils;
@@ -137,12 +136,13 @@ fn clean(config_manager: &mut ConfigManager) -> Result<(), Box<dyn std::error::E
         config_manager.load_profile(profile)?;
     }
     let vars = global_profile.collect_vars(config_manager)?;
-    let script = utils::env::generate_unset_script(&vars);
+    let mut generate = utils::shell_generate::ShellGenerate::new();
 
     global_profile.clear();
     config_manager.write_global(&global_profile)?;
 
-    println!("{SHELL_MARK}{script}");
+    generate.unset_from_map(&vars);
+    generate.output();
 
     show_success("Global configuration cleaned successfully.");
     Ok(())

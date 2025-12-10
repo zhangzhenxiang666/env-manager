@@ -3,7 +3,9 @@ use super::components::edit::EditComponent;
 use super::components::list::ListComponent;
 use super::event::handle_event;
 use super::ui::ui;
+use crate::GLOBAL_PROFILE_MARK;
 use crate::config::ConfigManager;
+use crate::config::models::Profile;
 use ratatui::crossterm::execute;
 use ratatui::crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
@@ -20,6 +22,7 @@ pub enum AppState {
     AddNew,
     Rename,
     ConfirmDelete,
+    ConfirmExit,
 }
 
 pub struct App {
@@ -34,12 +37,12 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(config_manager: ConfigManager) -> App {
-        let mut profile_names: Vec<String> = config_manager.list_profile_names().to_vec();
-        profile_names.sort();
-        profile_names.sort();
+    pub fn new(mut config_manager: ConfigManager, global_profile: Profile) -> App {
+        // Load GLOBAL profile
+        config_manager.add_profile(GLOBAL_PROFILE_MARK.to_string(), global_profile);
 
         let mut list_component = ListComponent::new();
+        let profile_names: Vec<String> = config_manager.list_profile_names().to_vec();
         list_component.update_profiles(profile_names);
 
         App {
@@ -129,6 +132,10 @@ impl App {
             None => return Ok(()),
         };
 
+        if old_name == GLOBAL_PROFILE_MARK {
+            return Ok(());
+        }
+
         if old_name == new_name {
             return Ok(());
         }
@@ -204,6 +211,10 @@ impl App {
         };
 
         // Validation
+        if name_to_delete == GLOBAL_PROFILE_MARK {
+            return Ok(());
+        }
+
         if let Some(dependents) = self.config_manager.get_parents(&name_to_delete)
             && !dependents.is_empty()
         {
@@ -240,7 +251,9 @@ impl App {
     }
 
     pub fn run() -> Result<(), Box<dyn std::error::Error>> {
-        let mut app = App::new(ConfigManager::new_full()?);
+        let config_manager = ConfigManager::new_full()?;
+        let global_profile = config_manager.read_global()?;
+        let mut app = App::new(config_manager, global_profile);
 
         enable_raw_mode()?;
         let mut stderr = io::stderr();

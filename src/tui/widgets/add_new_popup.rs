@@ -1,12 +1,10 @@
 use crate::tui::components::add_new::{AddNewComponent, AddNewFocus, AddNewVariableFocus};
 use crate::tui::{app::App, theme::Theme, utils, utils::Input};
-use ratatui::{
-    layout::{Constraint, Layout},
-    prelude::*,
-    widgets::{
-        Block, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Scrollbar,
-        ScrollbarOrientation, ScrollbarState, Table, TableState,
-    },
+use ratatui::layout::{Constraint, Layout};
+use ratatui::prelude::*;
+use ratatui::widgets::{
+    Block, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Scrollbar,
+    ScrollbarOrientation, ScrollbarState, Table, TableState,
 };
 use std::mem;
 use unicode_width::UnicodeWidthStr;
@@ -29,19 +27,25 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     let inner_popup_area = popup_block.inner(area);
     frame.render_widget(popup_block, area);
 
-    let layout = Layout::vertical([
-        Constraint::Length(3),  // Name section
-        Constraint::Length(8),  // Profiles section (flexible, will use available space)
-        Constraint::Length(12), // Variables section
-        Constraint::Min(0),     // Spacer
-        Constraint::Length(2),  // Help section
+    let main_layout = Layout::vertical([
+        Constraint::Length(3), // Name section
+        Constraint::Min(0),    // Flexible middle section
+        Constraint::Length(2), // Help section
     ])
     .split(inner_popup_area);
 
-    let name_area = layout[0];
-    let profiles_area = layout[1];
-    let variables_area = layout[2];
-    let help_area = layout[4];
+    let name_area = main_layout[0];
+    let middle_area = main_layout[1];
+    let help_area = main_layout[2];
+
+    let middle_layout = Layout::vertical([
+        Constraint::Percentage(40), // Profiles section
+        Constraint::Percentage(60), // Variables section
+    ])
+    .split(middle_area);
+
+    let profiles_area = middle_layout[0];
+    let variables_area = middle_layout[1];
 
     render_name_section(frame, add_new_state, name_area, &theme);
     render_profiles_section(frame, app, profiles_area, &theme);
@@ -306,21 +310,8 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
     {
         let table_inner_area = variables_block.inner(area);
         let row_index = add_new.selected_variable_index();
-        // Visual row calculation might need adjustment depending on how Table handles it implicitly.
-        // But since we are manually calculating overlay position, we need to know where the row is relative to the table block.
-        // Table with offset N means the Nth item is at the top (after header).
 
         let visual_row_index = row_index.saturating_sub(render_variable_scroll);
-
-        // +2 for border + header_height(1) + bottom_margin(1)?
-        // Default header height is 1 line. With bottom_margin(1), total header area is 2 lines.
-        // So content starts at y + 1 (top border) + 2 (header). = y + 3?
-        // Let's re-verify.
-        // In original code: `row_y = table_inner_area.y + 2 + visual_row_index as u16;`
-        // If table_inner_area is inner of block.
-        // Header is rendered inside block.
-        // If header has bottom_margin(1), it takes 2 lines.
-        // So first data row is at y+2. YES.
 
         let row_y = table_inner_area.y + 2 + visual_row_index as u16;
 
@@ -332,10 +323,6 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
         let layout = Layout::horizontal(col_widths).spacing(1);
         let column_chunks = layout.split(table_inner_area);
         let cell_area = column_chunks[col_index];
-
-        // Overlay the cell. Expand slightly width wise for border?
-        // Original code was: x-1, y-1, width+2, height=3.
-        // This centers the edit box 1 char outside the cell to cover borders if any, or just be prominent.
 
         let popup_area = Rect {
             x: cell_area.x.saturating_sub(1),

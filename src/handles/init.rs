@@ -1,4 +1,3 @@
-use crate::SHELL_MARK;
 use crate::{config::ConfigManager, utils};
 pub fn handle() -> Result<(), Box<dyn std::error::Error>> {
     let mut config_manager = ConfigManager::new()?;
@@ -10,9 +9,9 @@ pub fn handle() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let vars = global_profile.collect_vars(&config_manager)?;
-    let script = utils::env::generate_export_script(&vars);
-
-    println!("{SHELL_MARK}{script}");
+    let mut generate = utils::shell_generate::ShellGenerate::new();
+    generate.export_from_map(&vars);
+    generate.output();
 
     Ok(())
 }
