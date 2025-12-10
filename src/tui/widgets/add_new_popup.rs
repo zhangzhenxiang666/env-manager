@@ -1,3 +1,4 @@
+use crate::GLOBAL_PROFILE_MARK;
 use crate::tui::components::add_new::{AddNewComponent, AddNewFocus, AddNewVariableFocus};
 use crate::tui::{app::App, theme::Theme, utils, utils::Input};
 use ratatui::layout::{Constraint, Layout};
@@ -123,7 +124,7 @@ fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &The
         .list_component
         .all_profiles()
         .iter()
-        .filter(|name| **name != add_new.name_input().text())
+        .filter(|name| **name != add_new.name_input().text() && *name != GLOBAL_PROFILE_MARK)
         .collect();
     let total_profiles = available_profiles.len();
     let is_focused = add_new.current_focus() == AddNewFocus::Profiles;
