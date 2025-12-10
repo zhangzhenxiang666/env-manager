@@ -58,7 +58,7 @@ chmod +x "$TARGET_BIN"
 echo "Configuring $RC_FILE..."
 
 # Define the function block (Zsh compatible)
-read -r -d '' FUNC_BLOCK <<EOF
+read -r -d '' FUNC_BLOCK <<EOF || true
 function em() {
     local output
     local exit_code

@@ -59,7 +59,7 @@ chmod +x "$TARGET_BIN"
 echo "Configuring $RC_FILE..."
 
 # Define the function block (Fish syntax)
-read -r -d '' FUNC_BLOCK <<EOF
+read -r -d '' FUNC_BLOCK <<EOF || true
 function em
     set -l output (env CLICOLOR_FORCE=1 EM_SHELL=fish $TARGET_BIN \$argv)
     set -l exit_code \$status
