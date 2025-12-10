@@ -53,12 +53,6 @@ curl -fsSL https://raw.githubusercontent.com/zhangzhenxiang666/env-manager/main/
 curl -fsSL https://raw.githubusercontent.com/zhangzhenxiang666/env-manager/main/scripts/install_zsh.sh | bash
 ```
 
-### Fish
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/zhangzhenxiang666/env-manager/main/scripts/install_fish.sh | bash
-```
-
 > **Note**: After installation, please restart your terminal or run `source ~/.bashrc` (or the equivalent config file) to load the configuration.
 
 ## Usage
