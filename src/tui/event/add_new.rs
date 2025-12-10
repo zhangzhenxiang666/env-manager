@@ -1,3 +1,4 @@
+use crate::GLOBAL_PROFILE_MARK;
 use crate::config::models::Profile;
 use crate::tui::app::{App, AppState};
 use crate::tui::components::add_new::{AddNewComponent, AddNewFocus, AddNewVariableFocus};
@@ -250,7 +251,7 @@ fn profiles(app: &mut App, key_code: KeyCode) {
         .list_component
         .all_profiles()
         .iter()
-        .filter(|name| **name != add_new.name_input().text())
+        .filter(|name| **name != add_new.name_input().text() && *name != GLOBAL_PROFILE_MARK)
         .collect();
     let count = available_profiles.len();
 
