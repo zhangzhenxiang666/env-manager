@@ -1,6 +1,9 @@
 use crate::SHELL_MARK;
 use crate::utils::shell_generate::ShellType;
 
+const POSIX_SHELL_WRAPPER_TEMPLATE: &str = include_str!("../../templates/posix.sh");
+const FISH_SHELL_WRAPPER_TEMPLATE: &str = include_str!("../../templates/fish.fish");
+
 pub fn handle(shell: String, print_full_init: bool) -> Result<(), Box<dyn std::error::Error>> {
     let shell_type = ShellType::try_from(shell.as_str())?;
     let exe_path = match std::env::current_exe() {
@@ -55,13 +58,22 @@ fn init_zsh(
 }
 
 fn init_fish(
-    _exe_path: std::path::PathBuf,
-    _print_full_init: bool,
+    exe_path: std::path::PathBuf,
+    print_full_init: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    todo!()
+    if !print_full_init {
+        print!(
+            "{} init fish --print-full-init | source",
+            exe_path.display()
+        );
+    } else {
+        print!(
+            "{}",
+            generate_fish_shell_wrapper("fish", exe_path.to_str().unwrap())
+        );
+    }
+    Ok(())
 }
-
-const POSIX_SHELL_WRAPPER_TEMPLATE: &str = include_str!("../../templates/posix.sh");
 
 fn generate_posix_shell_wrapper(shell_type: &str, binary_path: &str) -> String {
     let marker_length = SHELL_MARK.len();
@@ -71,4 +83,19 @@ fn generate_posix_shell_wrapper(shell_type: &str, binary_path: &str) -> String {
         .replace("{{BINARY_PATH}}", binary_path)
         .replace("{{SHELL_CMD_MARKER}}", SHELL_MARK)
         .replace("{{MARKER_LENGTH}}", &marker_length.to_string())
+}
+
+fn generate_fish_shell_wrapper(shell_type: &str, binary_path: &str) -> String {
+    let marker_length = SHELL_MARK.len();
+    // fish string sub is 1-based index
+    let marker_length_plus_one = marker_length + 1;
+
+    FISH_SHELL_WRAPPER_TEMPLATE
+        .replace("{{SHELL_TYPE}}", shell_type)
+        .replace("{{BINARY_PATH}}", binary_path)
+        .replace("{{SHELL_CMD_MARKER}}", SHELL_MARK)
+        .replace(
+            "{{MARKER_LENGTH_PLUS_ONE}}",
+            &marker_length_plus_one.to_string(),
+        )
 }

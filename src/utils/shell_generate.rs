@@ -67,7 +67,7 @@ impl ShellType {
             }
             Self::Fish => {
                 let escaped_value = value.replace('\\', r"\\").replace('\'', r"\'");
-                format!("set -x {key} '{escaped_value}'")
+                format!("set -gx {key} '{escaped_value}'")
             }
             #[cfg(target_os = "windows")]
             Self::PowerShell => {
