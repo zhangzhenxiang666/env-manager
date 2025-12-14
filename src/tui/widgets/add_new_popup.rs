@@ -167,7 +167,7 @@ fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &The
         .take(actual_visible_profiles)
         .map(|name| {
             let is_selected = add_new.is_profile_added(name);
-            let prefix = if is_selected { "[✔] " } else { "[ ] " };
+            let prefix = if is_selected { "[✓] " } else { "[ ] " };
             ListItem::new(format!("{prefix}{name}"))
         })
         .collect();
