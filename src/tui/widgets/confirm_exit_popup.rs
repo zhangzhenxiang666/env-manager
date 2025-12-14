@@ -1,10 +1,7 @@
 use crate::tui::{app::App, theme::Theme, utils};
-use ratatui::{
-    layout::{Constraint, Layout},
-    prelude::*,
-    widgets::{Block, Borders, Clear, Paragraph},
-};
-
+use ratatui::layout::{Constraint, Layout};
+use ratatui::prelude::*;
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 pub fn render(frame: &mut Frame<'_>, _app: &App) {
     let area = utils::centered_rect(50, 20, frame.area());
     let theme = Theme::new();

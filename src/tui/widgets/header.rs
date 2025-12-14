@@ -1,8 +1,6 @@
 use crate::tui::{app::App, theme::Theme};
-use ratatui::{
-    prelude::*,
-    widgets::{Block, Borders, Paragraph},
-};
+use ratatui::prelude::*;
+use ratatui::widgets::{Block, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
 pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {

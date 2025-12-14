@@ -2,6 +2,7 @@
 name = "env-manage"
 version = "0.1.0"
 edition = "2024"
+default-run = "env-manage"
 
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
@@ -12,3 +13,7 @@ ratatui = "0.29.0"
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "0.9.8"
 unicode-width = "0.1.11"
+
+[[bin]]
+name = "env-manage"
+path = "src/main.rs"

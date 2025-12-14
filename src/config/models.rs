@@ -53,17 +53,17 @@ impl Profile {
         let mut all_profiles_to_load = Vec::new();
         let mut seen_profiles = HashSet::new();
 
-        for profile_name in &self.profiles {
+        for profile_name in self.profiles.iter() {
             let ordered_deps = config_manager.resolve_dependencies(profile_name)?;
-            for dep in ordered_deps {
+            ordered_deps.into_iter().for_each(|dep| {
                 if seen_profiles.insert(dep.clone()) {
                     all_profiles_to_load.push(dep);
                 }
-            }
+            })
         }
 
         // also add the initial profiles themselves
-        for profile_name in &self.profiles {
+        for profile_name in self.profiles.iter() {
             if seen_profiles.insert(profile_name.clone()) {
                 all_profiles_to_load.push(profile_name.clone());
             }

@@ -2,35 +2,66 @@ use crate::SHELL_MARK;
 use std::{collections::HashMap, env};
 
 #[derive(Debug, Clone, Copy)]
-enum ShellType {
-    Posix,
+pub enum ShellType {
+    Bash,
+    Zsh,
     Fish,
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     PowerShell,
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     Cmd,
 }
 
 impl ShellType {
+    fn unsupported_shell_error(shell: &str) -> String {
+        const SUPPORTED: &[&str] = &[
+            "bash",
+            "zsh",
+            "fish",
+            #[cfg(target_os = "windows")]
+            "powershell",
+            #[cfg(target_os = "windows")]
+            "pwsh",
+            #[cfg(target_os = "windows")]
+            "cmd",
+        ];
+
+        let shells_list = SUPPORTED
+            .iter()
+            .map(|s| format!("* {}", s))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        format!(
+            "{shell} is not yet supported by env-manage.\n\
+            For the time being, we support the following shells:\n\
+            {shells_list}
+            "
+        )
+    }
     fn detect() -> Self {
         if let Ok(shell_type) = env::var("EM_SHELL") {
             return match shell_type.to_lowercase().as_str() {
                 "fish" => ShellType::Fish,
-                #[cfg(windows)]
+                #[cfg(target_os = "windows")]
                 "pwsh" | "powershell" => ShellType::PowerShell,
-                #[cfg(windows)]
+                #[cfg(target_os = "windows")]
                 "cmd" => ShellType::Cmd,
-                "bash" | "zsh" | "sh" => ShellType::Posix,
-                _ => ShellType::Posix,
+                "bash" => ShellType::Bash,
+                "zsh" => ShellType::Zsh,
+                _ => ShellType::Bash,
             };
         }
-
-        ShellType::Posix
+        ShellType::Bash
     }
 
     fn export_cmd(&self, key: &str, value: &str) -> String {
         match self {
-            Self::Posix => {
+            Self::Bash => {
+                let escaped_value = value.replace('\'', r"'\''");
+                format!("export {key}='{escaped_value}'")
+            }
+            Self::Zsh => {
                 let escaped_value = value.replace('\'', r"'\''");
                 format!("export {key}='{escaped_value}'")
             }
@@ -38,7 +69,7 @@ impl ShellType {
                 let escaped_value = value.replace('\\', r"\\").replace('\'', r"\'");
                 format!("set -x {key} '{escaped_value}'")
             }
-            #[cfg(windows)]
+            #[cfg(target_os = "windows")]
             Self::PowerShell => {
                 let escaped_value = value
                     .replace('`', "``")
@@ -46,7 +77,7 @@ impl ShellType {
                     .replace('$', "`$");
                 format!("$env:{key}=\"{escaped_value}\"")
             }
-            #[cfg(windows)]
+            #[cfg(target_os = "windows")]
             Self::Cmd => {
                 let escaped_value = value
                     .replace('%', "%%")
@@ -63,12 +94,29 @@ impl ShellType {
 
     fn unset_cmd(&self, key: &str) -> String {
         match self {
-            Self::Posix => format!("unset {key}"),
+            Self::Bash | Self::Zsh => format!("unset {key}"),
             Self::Fish => format!("set -e {key}"),
-            #[cfg(windows)]
+            #[cfg(target_os = "windows")]
             Self::PowerShell => format!("Remove-Item Env:{key}"),
-            #[cfg(windows)]
+            #[cfg(target_os = "windows")]
             Self::Cmd => format!("set {key}="),
+        }
+    }
+}
+
+impl TryFrom<&str> for ShellType {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value.to_lowercase().as_str() {
+            "fish" => Ok(ShellType::Fish),
+            #[cfg(target_os = "windows")]
+            "pwsh" | "powershell" => Ok(ShellType::PowerShell),
+            #[cfg(target_os = "windows")]
+            "cmd" => Ok(ShellType::Cmd),
+            "bash" => Ok(ShellType::Bash),
+            "zsh" => Ok(ShellType::Zsh),
+            _ => Err(Self::unsupported_shell_error(value)),
         }
     }
 }

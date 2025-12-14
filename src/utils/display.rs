@@ -219,5 +219,9 @@ pub fn show_error(message: &str) {
 }
 
 pub fn show_info(message: &str) {
-    eprintln!("{}", format!("ℹ {message}").blue());
+    eprintln!("{}", format!("[i] {message}").blue());
+}
+
+pub fn show_warning(message: &str) {
+    eprintln!("{}", format!("⚠ {message}").yellow());
 }

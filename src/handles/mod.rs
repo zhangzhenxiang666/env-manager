@@ -13,7 +13,10 @@ mod ui;
 
 pub fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
-        Init => init::handle(),
+        Init {
+            shell,
+            print_full_init,
+        } => init::handle(shell, print_full_init),
         Profile(profile_commands) => profile::handle(profile_commands),
         Activate { items } => activate::handle(items),
         Deactivate { items } => deactivate::handle(items),

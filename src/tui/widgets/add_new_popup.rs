@@ -1,5 +1,6 @@
 use crate::GLOBAL_PROFILE_MARK;
 use crate::tui::components::add_new::{AddNewComponent, AddNewFocus, AddNewVariableFocus};
+use crate::tui::widgets::empty;
 use crate::tui::{app::App, theme::Theme, utils, utils::Input};
 use ratatui::layout::{Constraint, Layout};
 use ratatui::prelude::*;
@@ -171,6 +172,8 @@ fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &The
         })
         .collect();
 
+    let is_empty = list_items.is_empty();
+
     let mut results_list = List::new(list_items).block(profiles_block);
     if is_focused {
         results_list = results_list.highlight_style(theme.selection_active());
@@ -182,6 +185,11 @@ fn render_profiles_section(frame: &mut Frame, app: &App, area: Rect, theme: &The
             add_new.profiles_selection_index() - render_profile_scroll,
         ));
     }
+
+    if is_empty {
+        empty::profile_not_selectable(frame, area);
+    }
+
     frame.render_stateful_widget(results_list, area, &mut list_state);
 
     // Scrollbar
@@ -230,8 +238,16 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
         .borders(Borders::ALL)
         .border_style(border_style);
 
+    // Calculate actual visible height for variables
+    let variables_inner_height = area.height.saturating_sub(2) as usize; // Remove borders
+    let actual_visible_variables = variables_inner_height.saturating_sub(2).max(1); // Subtract header
+
+    // Calculate scroll offset based on actual viewport
+    let render_variable_scroll = add_new.calculate_variable_scroll_offset(actual_visible_variables);
+
     let header = Row::new(vec!["Key", "Value"])
         .style(Style::new().add_modifier(Modifier::BOLD))
+        .style(theme.text_highlight())
         .bottom_margin(1);
 
     let rows: Vec<Row> = add_new
@@ -261,16 +277,11 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
                 Cell::from(value_input.text()).style(value_style),
             ])
         })
+        .skip(render_variable_scroll)
         .collect();
+    let is_empty = rows.is_empty();
 
-    // Calculate actual visible height for variables
-    let variables_inner_height = area.height.saturating_sub(2) as usize; // Remove borders
-    let actual_visible_variables = variables_inner_height.saturating_sub(2).max(1); // Subtract header
-
-    // Calculate scroll offset based on actual viewport
-    let render_variable_scroll = add_new.calculate_variable_scroll_offset(actual_visible_variables);
-
-    let mut table_state = TableState::default().with_offset(render_variable_scroll);
+    let mut table_state = TableState::default();
     if is_focused && add_new.variables_count() > 0 {
         table_state.select(Some(add_new.selected_variable_index()));
     }
@@ -280,6 +291,9 @@ fn render_variables_section(frame: &mut Frame, app: &App, area: Rect, theme: &Th
         .header(header)
         .block(variables_block.clone());
 
+    if is_empty {
+        empty::variable_not_defined(frame, area);
+    }
     frame.render_stateful_widget(table, area, &mut table_state);
 
     // Scrollbar
@@ -450,7 +464,7 @@ fn render_name_help(frame: &mut Frame<'_>, area: Rect) {
             Span::raw(": Focus"),
         ],
         vec![
-            Span::styled("←/→", Style::default().fg(Color::Rgb(255, 138, 199))),
+            Span::styled("←→", Style::default().fg(Color::Rgb(255, 138, 199))),
             Span::raw(" : Move cursor"),
         ],
         vec![
@@ -474,7 +488,7 @@ fn render_profiles_help(frame: &mut Frame, area: Rect) {
             Span::raw(": Focus"),
         ],
         vec![
-            Span::styled("↑/↓", Style::default().fg(Color::Rgb(255, 138, 199))),
+            Span::styled("↑↓", Style::default().fg(Color::Rgb(255, 138, 199))),
             Span::raw(": Navigate"),
         ],
         vec![

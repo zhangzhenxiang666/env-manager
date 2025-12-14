@@ -2,7 +2,7 @@ use crate::GLOBAL_PROFILE_MARK;
 use crate::config::models::Profile;
 use crate::tui::app::{App, AppState};
 use crate::tui::components::add_new::{AddNewComponent, AddNewFocus, AddNewVariableFocus};
-use crate::tui::utils;
+use crate::tui::utils::validate_input;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::collections::HashMap;
 
@@ -99,7 +99,11 @@ fn handle_editing_input(app: &mut App, key_code: KeyCode) {
             }
         }
         // For any other key, confirm the current edit
-        _ => add_new.confirm_editing_variable(),
+        _ => {
+            if validate_variable_key_input(add_new) {
+                add_new.confirm_editing_variable();
+            }
+        }
     }
 }
 
@@ -133,8 +137,7 @@ fn handle_navigation_mode(app: &mut App, key: KeyEvent) {
 }
 
 fn save_profile(app: &mut App) {
-    validate_name(app);
-    if !app.add_new_component.name_input().is_valid() {
+    if !validate_name(app) {
         return;
     }
 
@@ -197,11 +200,8 @@ fn close_popup(app: &mut App) {
 
 fn attempt_switch_focus(app: &mut App, forward: bool) {
     // If focused on Name, validate before leaving
-    if app.add_new_component.current_focus() == AddNewFocus::Name {
-        validate_name(app);
-        if !app.add_new_component.name_input().is_valid() {
-            return;
-        }
+    if app.add_new_component.current_focus() == AddNewFocus::Name && !validate_name(app) {
+        return;
     }
     app.add_new_component.switch_focus(forward);
 }
@@ -228,11 +228,8 @@ fn dispatch_context_key(app: &mut App, key: KeyEvent) {
         KeyCode::Right if focus == AddNewFocus::Name => {
             app.add_new_component.name_input_mut().move_cursor_right()
         }
-        KeyCode::Enter if focus == AddNewFocus::Name => {
-            validate_name(app);
-            if app.add_new_component.name_input().is_valid() {
-                app.add_new_component.switch_focus(true);
-            }
+        KeyCode::Enter if focus == AddNewFocus::Name && validate_name(app) => {
+            app.add_new_component.switch_focus(true);
         }
         _ => {
             // Dispatch to specific handlers for Profiles and Variables
@@ -282,50 +279,26 @@ fn variables(app: &mut App, key_code: KeyCode) {
     }
 }
 
-fn validate_name(app: &mut App) {
+fn validate_name(app: &mut App) -> bool {
     let input = app.add_new_component.name_input_mut();
     input.clear_error();
-
-    if let Err(e) = utils::validate_non_empty(input.text()) {
-        input.set_error_message(&format!("Name {e}"));
-        return;
-    }
-    if let Err(e) = utils::validate_no_spaces(input.text()) {
-        input.set_error_message(&format!("Name {e}"));
-        return;
-    }
-    if let Err(e) = utils::validate_starts_with_non_digit(input.text()) {
-        input.set_error_message(&format!("Name {e}"));
-        return;
-    }
-
     if app.config_manager.has_profile(input.text()) {
         input.set_error_message("Profile already exists");
-        return;
+        false
+    } else {
+        validate_input(input)
     }
-    input.clear_error();
 }
 
 /// Validates the currently focused variable input (if it's a Key).
 /// Returns true if valid, false if invalid.
 fn validate_variable_key_input(add_new: &mut AddNewComponent) -> bool {
     if let Some(input) = add_new.get_focused_variable_input_mut() {
-        if let Err(e) = utils::validate_non_empty(input.text()) {
-            input.set_error_message(&e);
-            return false;
-        }
-        if let Err(e) = utils::validate_no_spaces(input.text()) {
-            input.set_error_message(&e);
-            return false;
-        }
-        if let Err(e) = utils::validate_starts_with_non_digit(input.text()) {
-            input.set_error_message(&e);
-            return false;
-        }
         input.clear_error();
-        return true;
+        validate_input(input)
+    } else {
+        true
     }
-    true
 }
 
 fn should_delete_variable_row(add_new: &AddNewComponent) -> bool {

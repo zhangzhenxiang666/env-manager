@@ -1,7 +1,7 @@
 use crate::GLOBAL_PROFILE_MARK;
 use crate::tui::app::{App, AppState};
 use crate::tui::components::edit::{EditComponent, EditFocus, EditVariableFocus};
-use crate::tui::utils::{validate_no_spaces, validate_non_empty, validate_starts_with_non_digit};
+use crate::tui::utils::validate_input;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Error>> {
@@ -211,10 +211,14 @@ fn handle_navigation_mode(app: &mut App, key: KeyEvent) {
 
 fn exit_edit_mode(app: &mut App) {
     // Save profile if there are changes
-    if app.edit_component.has_changes() {
+    if app
+        .list_component
+        .is_dirty(app.edit_component.profile_name())
+    {
         save_profile_to_memory(app);
     }
     app.state = AppState::List;
+    app.edit_component.reset();
 }
 
 fn navigate_down(app: &mut App) {
@@ -272,22 +276,9 @@ fn open_dependency_selector_if_in_profiles(app: &mut App) {
 fn validate_variable_key(edit: &mut EditComponent) -> bool {
     if let Some(input) = edit.get_focused_variable_input_mut() {
         input.clear_error();
-
-        if let Err(e) = validate_non_empty(input.text()) {
-            input.set_error_message(&e);
-            return false;
-        }
-        if let Err(e) = validate_no_spaces(input.text()) {
-            input.set_error_message(&e);
-            return false;
-        }
-        if let Err(e) = validate_starts_with_non_digit(input.text()) {
-            input.set_error_message(&e);
-            return false;
-        }
-        true
+        validate_input(input)
     } else {
-        false
+        true
     }
 }
 

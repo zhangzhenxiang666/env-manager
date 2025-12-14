@@ -1,9 +1,6 @@
 use crate::tui::app::AppState::{self, List};
 use crate::tui::theme::Theme;
-use ratatui::Frame;
-use ratatui::layout::Rect;
-use ratatui::style::{Color, Style};
-use ratatui::text::{Line, Span, Text};
+use ratatui::prelude::*;
 
 pub fn render(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
     let version_info = Text::from(vec![Line::raw(format!(
@@ -28,6 +25,8 @@ fn list_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
             Span::raw(": Exit Search  "),
             Span::styled("Enter", Style::default().fg(Color::Rgb(106, 255, 160))),
             Span::raw(": Edit  "),
+            Span::styled("Tab", Style::default().fg(Color::Rgb(130, 170, 255))),
+            Span::raw(": Switch View  "),
             Span::styled("↑↓", Style::default().fg(Color::Rgb(255, 138, 199))),
             Span::raw(": Navigate  "),
             Span::styled("F2", Style::default().fg(Color::LightYellow)),
@@ -45,6 +44,8 @@ fn list_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
             Span::raw(": Close  "),
             Span::styled("Enter", Style::default().fg(Color::Rgb(106, 255, 160))),
             Span::raw(": Edit  "),
+            Span::styled("Tab", Style::default().fg(Color::Rgb(130, 170, 255))),
+            Span::raw(": Switch View  "),
             Span::styled("↑↓", Style::default().fg(Color::Rgb(255, 138, 199))),
             Span::raw(": Navigate  "),
             Span::styled("N", Style::default().fg(Color::LightGreen)),
@@ -110,7 +111,7 @@ fn edit_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
         match app.edit_component.current_focus() {
             EditFocus::Profiles => vec![
                 Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
-                Span::raw(": Back (Mem Save)  "),
+                Span::raw(": Back  "),
                 Span::styled("Tab", Style::default().fg(Color::Rgb(130, 170, 255))),
                 Span::raw(": Focus  "),
                 Span::styled("↑/↓", Style::default().fg(Color::Rgb(255, 138, 199))),
@@ -122,7 +123,7 @@ fn edit_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
             ],
             EditFocus::Variables => vec![
                 Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
-                Span::raw(": Back (Mem Save)  "),
+                Span::raw(": Back  "),
                 Span::styled("Tab", Style::default().fg(Color::Rgb(130, 170, 255))),
                 Span::raw(": Focus  "),
                 Span::styled("↑↓←→", Style::default().fg(Color::Rgb(255, 138, 199))),

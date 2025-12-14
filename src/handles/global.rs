@@ -1,7 +1,7 @@
-use crate::cli::GlobalCommands::{self, Add, Clean, List, Remove};
+use crate::cli::GlobalCommands::{self, Add, Clean, Init, List, Remove};
 use crate::config::ConfigManager;
-use crate::utils;
-use crate::utils::display::{show_info, show_success};
+use crate::utils::display::{show_info, show_success, show_warning};
+use crate::utils::{self, validate_variable_key};
 
 pub fn handle(global_commands: GlobalCommands) -> Result<(), Box<dyn std::error::Error>> {
     let mut config_manager = ConfigManager::new()?;
@@ -10,6 +10,7 @@ pub fn handle(global_commands: GlobalCommands) -> Result<(), Box<dyn std::error:
         Add { items } => add(items, &mut config_manager),
         Remove { items } => remove(items, &config_manager),
         Clean => clean(&mut config_manager),
+        Init => init(&mut config_manager),
     }
 }
 
@@ -50,6 +51,10 @@ fn add(
 
     for item in items {
         if let Some((key, value)) = item.split_once('=') {
+            if let Err(e) = validate_variable_key(key) {
+                return Err(format!("Invalid variable key: {}", e).into());
+            }
+
             if !key.is_empty() {
                 global.add_variable(key, value);
                 added_variables.push(key.to_string());
@@ -121,7 +126,7 @@ fn remove(
         ));
     }
     if !not_found_items.is_empty() {
-        show_info(&format!(
+        show_warning(&format!(
             "Items not found in global config: {}",
             not_found_items.join(", ")
         ));
@@ -145,5 +150,20 @@ fn clean(config_manager: &mut ConfigManager) -> Result<(), Box<dyn std::error::E
     generate.output();
 
     show_success("Global configuration cleaned successfully.");
+    Ok(())
+}
+
+fn init(config_manager: &mut ConfigManager) -> Result<(), Box<dyn std::error::Error>> {
+    let global_profile = config_manager.read_global()?;
+
+    for profile in global_profile.profiles.iter() {
+        config_manager.load_profile(profile)?;
+    }
+
+    let vars = global_profile.collect_vars(config_manager)?;
+    let mut generate = utils::shell_generate::ShellGenerate::new();
+    generate.export_from_map(&vars);
+    generate.output();
+
     Ok(())
 }

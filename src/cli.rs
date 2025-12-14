@@ -30,8 +30,13 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Commands {
-    /// Initialize the shell environment
-    Init,
+    /// Initialize the shell environment for env-manage
+    Init {
+        #[arg(help = "Shell to initialize", value_name = "SHELL", required = true)]
+        shell: String,
+        #[arg(long, help = "Print full initialization script")]
+        print_full_init: bool,
+    },
 
     /// Manage environment profiles
     #[command(subcommand)]
@@ -128,6 +133,8 @@ pub enum GlobalCommands {
     },
     /// Clear all global settings and unset corresponding environment variables in current shell
     Clean,
+    /// Initialize the shell environment
+    Init,
 }
 
 #[derive(Debug, Args)]

@@ -1,7 +1,8 @@
 use crate::cli::ProfileCommands::{self, Add, Create, Delete, List, Remove, Rename};
+use crate::cli::ProfileRenameArgs;
 use crate::config::ConfigManager;
 use crate::config::models::Profile;
-use crate::{cli::ProfileRenameArgs, utils::display};
+use crate::utils::{display, validate_profile_name, validate_variable_key};
 
 pub fn handle(profile_commands: ProfileCommands) -> Result<(), Box<dyn std::error::Error>> {
     let mut config_manager = ConfigManager::new()?;
@@ -26,6 +27,12 @@ fn list(
         return Ok(());
     }
 
+    profile_names.iter().for_each(|name| {
+        if let Err(e) = validate_profile_name(name) {
+            display::show_warning(&format!("Invalid profile name '{name}': {e}"));
+        }
+    });
+
     if expand {
         profile_names.display_expand(config_manager)?;
     } else {
@@ -42,13 +49,11 @@ fn create(
     if config_manager.profile_exists(&name) {
         return Err(format!("Profile `{name}` already exists").into());
     }
-    if !validate_non_empty(&name) {
-        return Err("Profile name cannot be empty".into());
+
+    if let Err(e) = validate_profile_name(&name) {
+        return Err(format!("Invalid profile name: {}", e).into());
     }
 
-    if !validate_starts_with_non_digit(&name) {
-        return Err("Profile name must start with a non-digit character".into());
-    }
     let profile = Profile::new();
     config_manager.write_profile(&name, &profile)?;
     display::show_success(&format!("Profile '{name}' created successfully."));
@@ -64,12 +69,8 @@ fn rename(
         dest_name,
     } = rename_args;
 
-    if !validate_non_empty(&dest_name) {
-        return Err("Profile name cannot be empty".into());
-    }
-
-    if !validate_starts_with_non_digit(&dest_name) {
-        return Err("Profile name must start with a non-digit character".into());
+    if let Err(e) = validate_profile_name(&dest_name) {
+        return Err(format!("Invalid profile name: {}", e).into());
     }
 
     // Since other profiles may depend on the profile being renamed,
@@ -116,6 +117,10 @@ fn add(
 
     for item in items {
         if let Some((key, value)) = item.split_once('=') {
+            if let Err(e) = validate_variable_key(key) {
+                return Err(format!("Invalid variable key: {}", e).into());
+            }
+
             if let Some(profile) = config_manager.get_profile_mut(&name) {
                 profile.add_variable(key, value);
             }
@@ -193,7 +198,7 @@ fn remove(
                 "Nested profile '{item}' removed from profile '{name}'."
             ));
         } else {
-            display::show_info(&format!("Item '{item}' not found in profile '{name}'."));
+            display::show_warning(&format!("Item '{item}' not found in profile '{name}'."));
         }
     }
 
@@ -201,18 +206,4 @@ fn remove(
         config_manager.write_profile(&name, profile)?;
     }
     Ok(())
-}
-
-fn validate_non_empty(text: &str) -> bool {
-    text.trim().is_empty()
-}
-
-fn validate_starts_with_non_digit(text: &str) -> bool {
-    if let Some(first_char) = text.chars().next()
-        && first_char.is_ascii_digit()
-    {
-        false
-    } else {
-        true
-    }
 }

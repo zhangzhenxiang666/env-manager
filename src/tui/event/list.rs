@@ -1,6 +1,6 @@
 use crate::{
     GLOBAL_PROFILE_MARK,
-    tui::app::{App, AppState},
+    tui::app::{App, AppState, MainRightViewMode},
 };
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
@@ -14,8 +14,12 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
         {
             match key.code {
                 KeyCode::Char('d') => {
-                    if !list_component.filtered_profiles().is_empty() {
-                        app.state = AppState::ConfirmDelete;
+                    if let Some(name) = list_component.current_profile() {
+                        if name == GLOBAL_PROFILE_MARK {
+                            app.status_message = Some("Cannot delete GLOBAL profile".to_string());
+                        } else {
+                            app.state = AppState::ConfirmDelete;
+                        }
                     }
                 }
                 KeyCode::Char('s') => {
@@ -49,9 +53,15 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
             }
             KeyCode::Down => {
                 list_component.next();
+                if app.main_right_view_mode == MainRightViewMode::Expand {
+                    app.load_expand_vars();
+                }
             }
             KeyCode::Up => {
                 list_component.previous();
+                if app.main_right_view_mode == MainRightViewMode::Expand {
+                    app.load_expand_vars();
+                }
             }
             KeyCode::Enter => {
                 if let Some(name) = list_component.current_profile() {
@@ -59,10 +69,22 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
                     app.start_editing(&name);
                 }
             }
+            KeyCode::Tab => match app.main_right_view_mode {
+                MainRightViewMode::Raw => {
+                    app.load_expand_vars();
+                }
+                MainRightViewMode::Expand => {
+                    app.unload_expand_vars();
+                }
+            },
             KeyCode::F(2) => {
-                if list_component.current_profile().is_some() {
-                    app.state = AppState::Rename;
-                    list_component.start_rename();
+                if let Some(name) = list_component.current_profile() {
+                    if name == GLOBAL_PROFILE_MARK {
+                        app.status_message = Some("Cannot rename GLOBAL profile".to_string());
+                    } else {
+                        app.state = AppState::Rename;
+                        list_component.start_rename();
+                    }
                 }
             }
             _ => {}
@@ -81,9 +103,15 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
             }
             KeyCode::Char('j') | KeyCode::Down => {
                 app.list_component.next();
+                if app.main_right_view_mode == MainRightViewMode::Expand {
+                    app.load_expand_vars();
+                }
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 app.list_component.previous();
+                if app.main_right_view_mode == MainRightViewMode::Expand {
+                    app.load_expand_vars();
+                }
             }
             KeyCode::Enter => {
                 if let Some(name) = list_component.current_profile() {
@@ -91,6 +119,14 @@ pub fn handle(app: &mut App, key: KeyEvent) -> Result<(), Box<dyn std::error::Er
                     app.start_editing(&name);
                 }
             }
+            KeyCode::Tab => match app.main_right_view_mode {
+                MainRightViewMode::Raw => {
+                    app.load_expand_vars();
+                }
+                MainRightViewMode::Expand => {
+                    app.unload_expand_vars();
+                }
+            },
             KeyCode::Char('s') => {
                 app.save_selected()?;
             }

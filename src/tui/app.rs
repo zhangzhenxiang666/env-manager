@@ -12,6 +12,7 @@ use ratatui::crossterm::terminal::{
 };
 use ratatui::prelude::Backend;
 use ratatui::{Terminal, prelude::CrosstermBackend};
+use std::collections::HashMap;
 use std::io;
 
 #[derive(Default, Debug, PartialEq, Eq)]
@@ -25,15 +26,24 @@ pub enum AppState {
     ConfirmExit,
 }
 
+#[derive(Default, PartialEq, Eq)]
+pub enum MainRightViewMode {
+    #[default]
+    Raw,
+    Expand,
+}
+
 pub struct App {
     pub config_manager: ConfigManager,
     pub state: AppState,
     pub shutdown: bool,
     pub add_new_component: AddNewComponent,
     pub edit_component: EditComponent,
+    pub main_right_view_mode: MainRightViewMode,
+    pub expand_env_vars: Option<HashMap<String, String>>,
     pub list_component: ListComponent,
     pub status_message: Option<String>,
-    pub pending_deletes: std::collections::HashMap<String, Option<String>>,
+    pub pending_deletes: HashMap<String, Option<String>>,
 }
 
 impl App {
@@ -53,7 +63,9 @@ impl App {
             edit_component: Default::default(),
             list_component,
             status_message: None,
-            pending_deletes: std::collections::HashMap::new(),
+            pending_deletes: Default::default(),
+            main_right_view_mode: Default::default(),
+            expand_env_vars: Default::default(),
         }
     }
 
@@ -202,6 +214,27 @@ impl App {
             self.edit_component = EditComponent::from_profile(profile_name, profile);
             self.state = AppState::Edit;
         }
+    }
+
+    pub fn load_expand_vars(&mut self) {
+        if let Some(profile_name) = self.list_component.current_profile()
+            && let Some(profile) = self.config_manager.get_profile(profile_name)
+        {
+            match profile.collect_vars(&self.config_manager) {
+                Ok(vars) => {
+                    self.expand_env_vars = Some(vars);
+                    self.main_right_view_mode = MainRightViewMode::Expand;
+                }
+                Err(e) => {
+                    self.status_message = Some(format!("Error expanding variables: {e}"));
+                }
+            }
+        }
+    }
+
+    pub fn unload_expand_vars(&mut self) {
+        self.expand_env_vars.take();
+        self.main_right_view_mode = MainRightViewMode::Raw;
     }
 
     pub fn delete_selected_profile(&mut self) -> Result<(), Box<dyn std::error::Error>> {

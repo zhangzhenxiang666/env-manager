@@ -1,3 +1,4 @@
+use crate::utils::{self, IdentifierError};
 use ratatui::prelude::*;
 
 /// A reusable struct to manage state for a text input field, with robust unicode support.
@@ -131,29 +132,8 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     .split(popup_layout[1])[1]
 }
 
-pub fn validate_no_spaces(text: &str) -> std::result::Result<(), String> {
-    if text.chars().any(char::is_whitespace) {
-        Err("Cannot contain spaces".to_string())
-    } else {
-        Ok(())
-    }
-}
-
-pub fn validate_non_empty(text: &str) -> std::result::Result<(), String> {
-    if text.trim().is_empty() {
-        Err("Cannot be empty".to_string())
-    } else {
-        Ok(())
-    }
-}
-
-pub fn validate_starts_with_non_digit(text: &str) -> std::result::Result<(), String> {
-    if let Some(first_char) = text.chars().next()
-        && first_char.is_ascii_digit()
-    {
-        return Err("Cannot start with a digit".to_string());
-    }
-    Ok(())
+pub fn inner(area: Rect) -> Rect {
+    Rect::new(area.x + 1, area.y + 1, area.width - 2, area.height - 2)
 }
 
 pub fn input_to_span<'a>(
@@ -191,5 +171,24 @@ pub fn input_to_span<'a>(
         ])
     } else {
         Line::from(input.text.clone())
+    }
+}
+
+pub fn validate_input(input: &mut Input) -> bool {
+    match utils::validate_profile_name(input.text()) {
+        Ok(_) => true,
+        Err(err) => {
+            match err {
+                IdentifierError::Empty => input.set_error_message("Cannot be empty"),
+                IdentifierError::StartsWithDigit => {
+                    input.set_error_message("Cannot start with a digit")
+                }
+                IdentifierError::InvalidCharacter(ch) => {
+                    input.set_error_message(&format!("Cannot contain character '{ch}'"))
+                }
+                _ => {}
+            }
+            false
+        }
     }
 }

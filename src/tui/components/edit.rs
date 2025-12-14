@@ -126,11 +126,18 @@ pub struct EditComponent {
 }
 
 impl EditComponent {
-    pub const MAX_VARIABLES_HEIGHT: usize = 5;
-    pub const MAX_PROFILES_HEIGHT: usize = 3;
-
     pub fn new() -> Self {
         Default::default()
+    }
+
+    pub fn reset(&mut self) {
+        self.variables.clear();
+        self.pre_edit_buffer.take();
+        self.profiles.clear();
+        self.profile_name.clear();
+        self.dependency_selector.reset();
+        self.original_profiles.clear();
+        self.original_variables.clear();
     }
 
     pub fn from_profile(name: &str, profile: &Profile) -> Self {

@@ -19,7 +19,7 @@ impl ListComponent {
 
     /// Get the currently selected profile name
     pub fn current_profile(&self) -> Option<&str> {
-        self.profile_names
+        self.filtered_profiles()
             .get(self.selected_index)
             .map(|s| s.as_str())
     }
@@ -30,19 +30,17 @@ impl ListComponent {
     }
 
     /// Get filtered profiles based on search mode
-    pub fn filtered_profiles(&self) -> Vec<String> {
+    pub fn filtered_profiles(&self) -> Vec<&String> {
         if !self.in_search_mode || self.search_input.text().is_empty() {
-            return self.profile_names.clone();
+            return self.profile_names.iter().collect();
         }
 
         let search_query = self.search_input.text().to_lowercase();
         self.profile_names
             .iter()
             .filter(|name| name.to_lowercase().contains(&search_query))
-            .cloned()
             .collect()
     }
-
     /// Update the profile list (e.g., after adding/removing profiles)
     pub fn update_profiles(&mut self, mut profiles: Vec<String>) {
         profiles.sort_by(|a, b| {
@@ -136,7 +134,7 @@ impl ListComponent {
         }
         let filtered = self.filtered_profiles();
         if !filtered.is_empty() {
-            let selected_name = &filtered[self.selected_index];
+            let selected_name = filtered[self.selected_index];
             if let Some(index) = self
                 .profile_names
                 .iter()
