@@ -19,7 +19,7 @@ pub fn render(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
 }
 
 fn list_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
-    let help_text = if app.list_component.is_searching() {
+    let help_text = if app.list_view.is_searching() {
         vec![
             Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
             Span::raw(": Exit Search  "),
@@ -84,11 +84,11 @@ fn rename_state(frame: &mut Frame<'_>, area: Rect) {
 }
 
 fn edit_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
-    use crate::tui::components::edit::{EditFocus, EditVariableFocus};
+    use crate::tui::views::edit::{EditFocus, EditVariableFocus};
 
-    let help_text = if app.edit_component.is_editing() {
+    let help_text = if app.edit_view.is_editing() {
         // Editing popup is active - show editing-specific help
-        match app.edit_component.variable_column_focus() {
+        match app.edit_view.variable_column_focus() {
             EditVariableFocus::Key => vec![
                 Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
                 Span::raw(": Cancel  "),
@@ -108,7 +108,7 @@ fn edit_state(frame: &mut Frame<'_>, area: Rect, app: &crate::tui::app::App) {
         }
     } else {
         // Navigation mode - show section-specific help
-        match app.edit_component.current_focus() {
+        match app.edit_view.current_focus() {
             EditFocus::Profiles => vec![
                 Span::styled("Esc", Style::default().fg(Color::Rgb(255, 107, 107))),
                 Span::raw(": Back  "),

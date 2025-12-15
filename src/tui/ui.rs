@@ -1,7 +1,6 @@
 use super::app::App;
-use super::widgets::{
-    add_new_popup, bottom, confirm_delete_popup, confirm_exit_popup, header, main_left,
-};
+use super::views::{add_new, list};
+use super::widgets::{bottom, confirm_delete_popup, confirm_exit_popup, header};
 use crate::tui::app::AppState;
 use crate::tui::widgets::main_right;
 use ratatui::prelude::*;
@@ -22,7 +21,7 @@ pub fn ui(frame: &mut Frame<'_>, app: &App) {
             .split(layout[1]);
 
     header::render(frame, layout[0], app);
-    main_left::render(frame, main_windown[0], app);
+    list::render(frame, main_windown[0], app);
     main_right::render(frame, main_windown[1], app);
     bottom::render(frame, layout[2], app);
 
@@ -31,7 +30,7 @@ pub fn ui(frame: &mut Frame<'_>, app: &App) {
             confirm_delete_popup::render(frame, app);
         }
         AppState::AddNew => {
-            add_new_popup::render(frame, app);
+            add_new::render(frame, app);
         }
         AppState::ConfirmExit => {
             confirm_exit_popup::render(frame, app);
@@ -41,7 +40,7 @@ pub fn ui(frame: &mut Frame<'_>, app: &App) {
 }
 
 fn calculate_main_left_width(app: &App) -> u16 {
-    let profiles = app.list_component.filtered_profiles();
+    let profiles = app.list_view.filtered_profiles();
     let max_len = profiles
         .iter()
         .map(|name| UnicodeWidthStr::width(name.as_str()))
@@ -50,7 +49,7 @@ fn calculate_main_left_width(app: &App) -> u16 {
 
     // Calculate title widths to prevent truncation
     let filtered_count = profiles.len();
-    let current_index = app.list_component.selected_index() + 1;
+    let current_index = app.list_view.selected_index() + 1;
     let title_str = if filtered_count == 0 {
         "Profile List (0/0)".to_string()
     } else {
@@ -58,7 +57,7 @@ fn calculate_main_left_width(app: &App) -> u16 {
     };
     let title_width = UnicodeWidthStr::width(title_str.as_str());
 
-    let unsaved_count = app.list_component.unsaved_count();
+    let unsaved_count = app.list_view.unsaved_count();
     let unsaved_width = if unsaved_count > 0 {
         UnicodeWidthStr::width(format!("Unsaved: {}", unsaved_count).as_str())
     } else {

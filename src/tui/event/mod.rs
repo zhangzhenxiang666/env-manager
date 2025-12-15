@@ -1,13 +1,10 @@
 use super::app::App;
 use crate::tui::app::AppState;
+use crate::tui::views::{add_new, edit, list};
 use ratatui::crossterm::event::{self, Event};
 
-mod add_new;
 mod confirm_delete;
 mod confirm_exit;
-mod edit;
-mod list;
-mod rename;
 
 pub fn handle_event(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
     if let Event::Key(key) = event::read()? {
@@ -18,12 +15,14 @@ pub fn handle_event(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         match app.state {
-            AppState::List => list::handle(app, key)?,
-            AppState::Edit => edit::handle(app, key)?,
+            AppState::List => list::handle_event(app, key)?,
+            AppState::Edit => {
+                edit::handle_event(app, key);
+            }
             AppState::ConfirmDelete => confirm_delete::handle(app, key)?,
-            AppState::Rename => rename::handle(app, key)?,
+            AppState::Rename => list::handle_rename_event(app, key)?,
             AppState::AddNew => {
-                add_new::handle(app, key);
+                add_new::handle_event(app, key);
             }
             AppState::ConfirmExit => confirm_exit::handle(app, key)?,
         }

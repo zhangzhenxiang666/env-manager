@@ -4,8 +4,8 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
 pub fn render(frame: &mut Frame<'_>, area: Rect, app: &App) {
-    if app.list_component.is_searching() {
-        let search_input = app.list_component.search_input();
+    if app.list_view.is_searching() {
+        let search_input = app.list_view.search_input();
         // Text "Search: " + input.text
         let prefix = "search prompts: ";
 

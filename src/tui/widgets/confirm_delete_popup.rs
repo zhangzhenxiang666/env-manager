@@ -4,7 +4,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 pub fn render(frame: &mut Frame<'_>, app: &App) {
     // Calculate dynamic dimensions based on content
-    let name = app.list_component.current_profile().unwrap();
+    let name = app.list_view.current_profile().unwrap();
     let text = format!("Are you sure you want to delete '{name}'? (y/n)");
 
     // Calculate required width

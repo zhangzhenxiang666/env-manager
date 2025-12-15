@@ -1,8 +1,6 @@
-use super::components::add_new::AddNewComponent;
-use super::components::edit::EditComponent;
-use super::components::list::ListComponent;
 use super::event::handle_event;
 use super::ui::ui;
+use super::views::{add_new::AddNewView, edit::EditView, list::ListView};
 use crate::GLOBAL_PROFILE_MARK;
 use crate::config::ConfigManager;
 use crate::config::models::Profile;
@@ -37,13 +35,13 @@ pub struct App {
     pub config_manager: ConfigManager,
     pub state: AppState,
     pub shutdown: bool,
-    pub add_new_component: AddNewComponent,
-    pub edit_component: EditComponent,
+    pub add_new_view: AddNewView,
+    pub edit_view: EditView,
     pub main_right_view_mode: MainRightViewMode,
     pub expand_env_vars: Option<HashMap<String, String>>,
-    pub list_component: ListComponent,
+    pub list_view: ListView,
     pub status_message: Option<String>,
-    pub pending_deletes: HashMap<String, Option<String>>,
+    pub pending_deletes: HashMap<String, String>,
 }
 
 impl App {
@@ -51,67 +49,58 @@ impl App {
         // Load GLOBAL profile
         config_manager.add_profile(GLOBAL_PROFILE_MARK.to_string(), global_profile);
 
-        let mut list_component = ListComponent::new();
-        let profile_names: Vec<String> = config_manager.list_profile_names().to_vec();
-        list_component.update_profiles(profile_names);
-
-        App {
+        let mut app = App {
             config_manager,
             state: Default::default(),
             shutdown: false,
-            add_new_component: Default::default(),
-            edit_component: Default::default(),
-            list_component,
+            add_new_view: Default::default(),
+            edit_view: EditView::new(),
+            list_view: ListView::new(),
             status_message: None,
             pending_deletes: Default::default(),
             main_right_view_mode: Default::default(),
             expand_env_vars: Default::default(),
-        }
+        };
+        app.load_profiles();
+        app
     }
 
     pub fn save_selected(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let name = match self.list_component.current_profile() {
+        let name = match self.list_view.current_profile() {
             Some(n) => n.to_string(),
             None => return Ok(()),
         };
 
-        if self.list_component.is_dirty(&name)
+        // Optimized logic: O(1) lookup ensures we delete the original file
+        if let Some(old_name) = self.pending_deletes.remove(&name) {
+            self.config_manager.delete_profile_file(&old_name)?;
+        }
+
+        if self.list_view.is_dirty(&name)
             && let Some(profile) = self.config_manager.get_profile(&name)
         {
             self.config_manager.write_profile(&name, profile)?;
-            self.list_component.clear_dirty(&name);
+            self.list_view.clear_dirty(&name);
         }
 
-        // Recursive delete logic for rename chains
-        // Find if the current saved name is a target of a rename
-        // i.e., find 'old_name' where map[old_name] == Some(name)
-        let mut to_delete = Vec::new();
+        Ok(())
+    }
 
-        // simple linear search is fine for small number of pending deletes
-        for (old, new_opt) in self.pending_deletes.iter() {
-            if let Some(new_name) = new_opt
-                && new_name == &name
-            {
-                to_delete.push(old.clone());
+    pub fn save_all(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let dirty_names: Vec<String> = self.list_view.dirty_profiles_iter().cloned().collect();
+        // Process all pending deletes
+        let pending_keys: Vec<String> = self.pending_deletes.keys().cloned().collect();
+        for new_name in pending_keys {
+            if let Some(old_name) = self.pending_deletes.remove(&new_name) {
+                self.config_manager.delete_profile_file(&old_name)?;
             }
         }
-
-        // For each found predecessor, delete it, and recursively check for its predecessor
-        let mut queue = to_delete;
-        while let Some(del_name) = queue.pop() {
-            if self.pending_deletes.contains_key(&del_name) {
-                self.config_manager.delete_profile_file(&del_name)?;
-
-                // Remove from pending map
-                self.pending_deletes.remove(&del_name);
-
-                // Check who pointed to 'del_name'
-                for (old, new_opt) in self.pending_deletes.iter() {
-                    if let Some(new_name) = new_opt
-                        && new_name == &del_name
-                    {
-                        queue.push(old.clone());
-                    }
+        for name in dirty_names {
+            if let Some(profile) = self.config_manager.get_profile(&name) {
+                if let Err(e) = self.config_manager.write_profile(&name, profile) {
+                    self.status_message = Some(format!("Error saving profile '{}': {}", name, e));
+                } else {
+                    self.list_view.clear_dirty(&name);
                 }
             }
         }
@@ -119,27 +108,8 @@ impl App {
         Ok(())
     }
 
-    pub fn save_all(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let dirty_names: Vec<String> = self.list_component.dirty_profiles_iter().cloned().collect();
-        for name in dirty_names {
-            if let Some(profile) = self.config_manager.get_profile(&name) {
-                self.config_manager.write_profile(&name, profile)?;
-                self.list_component.clear_dirty(&name);
-            }
-        }
-
-        // Process all pending deletes
-        let all_deletes: Vec<String> = self.pending_deletes.keys().cloned().collect();
-        for name in all_deletes {
-            self.config_manager.delete_profile_file(&name)?;
-            self.pending_deletes.remove(&name);
-        }
-
-        Ok(())
-    }
-
     pub fn rename_profile(&mut self, new_name: String) -> Result<(), Box<dyn std::error::Error>> {
-        let old_name = match self.list_component.current_profile() {
+        let old_name = match self.list_view.current_profile() {
             Some(n) => n.to_string(),
             None => return Ok(()),
         };
@@ -160,8 +130,13 @@ impl App {
         }
 
         // 2. Queue old name for deletion (Linked to new name)
-        self.pending_deletes
-            .insert(old_name.clone(), Some(new_name.clone()));
+        // Path compression: if old_name was itself a rename, point new_name to the original ancestor
+        if let Some(ancestor) = self.pending_deletes.remove(&old_name) {
+            self.pending_deletes.insert(new_name.clone(), ancestor);
+        } else {
+            self.pending_deletes
+                .insert(new_name.clone(), old_name.clone());
+        }
 
         // 3. Update Dependencies (other profiles that use old_name)
         let mut affected_profiles = Vec::new();
@@ -175,34 +150,34 @@ impl App {
 
         // 4. Mark affected profiles as dirty
         for name in affected_profiles {
-            self.list_component.mark_dirty(name);
+            self.list_view.mark_dirty(name);
         }
 
         // 5. Mark new profile as dirty (it has a new name/location essentially)
-        self.list_component.mark_dirty(new_name.clone());
+        self.list_view.mark_dirty(new_name.clone());
         // Since we removed old_name, remove it from dirty if it was there
-        self.list_component.clear_dirty(&old_name);
+        self.list_view.clear_dirty(&old_name);
 
         // 6. Update graph incrementally (more efficient than rebuild)
         self.config_manager
             .rename_profile_node(&old_name, new_name.clone())?;
 
         // 7. Update List Component
-        let mut profiles = self.list_component.all_profiles().to_vec();
+        let mut profiles = self.list_view.all_profiles().to_vec();
         if let Some(pos) = profiles.iter().position(|n| n == &old_name) {
             profiles[pos] = new_name.clone();
         }
         profiles.sort();
-        self.list_component.update_profiles(profiles);
+        self.list_view.update_profiles(profiles);
 
         // Fix selected index to follow the renamed item
         if let Some(new_index) = self
-            .list_component
+            .list_view
             .all_profiles()
             .iter()
             .position(|n| n == &new_name)
         {
-            self.list_component.set_selected_index(new_index);
+            self.list_view.set_selected_index(new_index);
         }
 
         self.status_message = Some(format!("Renamed '{old_name}' to '{new_name}'"));
@@ -211,22 +186,37 @@ impl App {
 
     pub fn start_editing(&mut self, profile_name: &str) {
         if let Some(profile) = self.config_manager.get_profile(profile_name) {
-            self.edit_component = EditComponent::from_profile(profile_name, profile);
+            self.edit_view = EditView::from_profile(profile_name, profile);
             self.state = AppState::Edit;
         }
     }
 
+    pub fn load_profiles(&mut self) {
+        let profiles = self.config_manager.list_profile_names().to_vec();
+        self.list_view.update_profiles(profiles);
+    }
+
     pub fn load_expand_vars(&mut self) {
-        if let Some(profile_name) = self.list_component.current_profile()
-            && let Some(profile) = self.config_manager.get_profile(profile_name)
-        {
-            match profile.collect_vars(&self.config_manager) {
-                Ok(vars) => {
-                    self.expand_env_vars = Some(vars);
-                    self.main_right_view_mode = MainRightViewMode::Expand;
+        if let Some(selected_name) = self.list_view.current_profile().map(|s| s.to_string()) {
+            if self.list_view.is_dirty(&selected_name)
+                && let Some(profile) = self.config_manager.get_profile(&selected_name)
+            {
+                if let Err(e) = self.config_manager.write_profile(&selected_name, profile) {
+                    self.status_message = Some(format!("Error saving profile: {}", e));
+                } else {
+                    self.list_view.clear_dirty(&selected_name);
+                    self.status_message = Some(format!("Saved profile '{}'", selected_name));
                 }
-                Err(e) => {
-                    self.status_message = Some(format!("Error expanding variables: {e}"));
+            }
+            if let Some(profile) = self.config_manager.get_profile(&selected_name) {
+                match profile.collect_vars(&self.config_manager) {
+                    Ok(vars) => {
+                        self.expand_env_vars = Some(vars);
+                        self.main_right_view_mode = MainRightViewMode::Expand;
+                    }
+                    Err(e) => {
+                        self.status_message = Some(format!("Error expanding variables: {e}"));
+                    }
                 }
             }
         }
@@ -238,7 +228,7 @@ impl App {
     }
 
     pub fn delete_selected_profile(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let name_to_delete = match self.list_component.current_profile() {
+        let name_to_delete = match self.list_view.current_profile() {
             Some(n) => n.to_string(),
             None => return Ok(()),
         };
@@ -260,12 +250,17 @@ impl App {
             return Ok(());
         }
 
-        let mut profiles = self.list_component.all_profiles().to_vec();
-        let selected_idx = self.list_component.selected_index();
+        let mut profiles = self.list_view.all_profiles().to_vec();
+        let selected_idx = self.list_view.selected_index();
         if selected_idx < profiles.len() {
             profiles.remove(selected_idx);
         }
-        self.list_component.update_profiles(profiles);
+        self.list_view.update_profiles(profiles);
+
+        // Ensure any original file associated with this profile (if it was a rename) is also deleted
+        if let Some(old_name) = self.pending_deletes.remove(&name_to_delete) {
+            self.config_manager.delete_profile_file(&old_name)?;
+        }
 
         self.config_manager.delete_profile_file(&name_to_delete)?;
 
@@ -273,7 +268,7 @@ impl App {
         self.config_manager.remove_profile(&name_to_delete);
 
         // Remove from dirty set if it's there
-        self.list_component.clear_dirty(&name_to_delete);
+        self.list_view.clear_dirty(&name_to_delete);
 
         // Remove from graph incrementally (more efficient than rebuild)
         self.config_manager.remove_profile_node(&name_to_delete)?;
