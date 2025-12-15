@@ -22,9 +22,7 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     let actual_width = (frame.area().width * width_percent / 100).saturating_sub(6);
 
     // Calculate how many lines the text will need
-    let text_lines = if text_width == 0 {
-        1
-    } else if text_width <= actual_width {
+    let text_lines = if text_width == 0 || text_width <= actual_width {
         1
     } else {
         ((text_width as f32) / (actual_width as f32)).ceil() as u16
