@@ -5,18 +5,20 @@ $InstallDir = "$env:USERPROFILE\.config\env-manage\bin"
 $TargetBin = "$InstallDir\env-manage.exe"
 
 Write-Host "Fetching latest version..."
+# Using System.Net.WebRequest to resolve the redirect URL automatically
+# This is more robust than Invoke-WebRequest across different PowerShell versions
 try {
-    # Attempt to fetch the latest release page with 0 redirects to get the location header
-    $Response = Invoke-WebRequest -Uri "https://github.com/$Repo/releases/latest" -Method Head -MaximumRedirection 0 -ErrorAction Stop
-    $LatestTagUrl = $Response.Headers.Location
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $Request = [System.Net.WebRequest]::Create("https://github.com/$Repo/releases/latest")
+    $Request.Method = "GET"
+    $Request.UserAgent = "PowerShell-EnvManage-Installer"
+    $Request.Timeout = 10000
+    $Response = $Request.GetResponse()
+    $LatestTagUrl = $Response.ResponseUri.AbsoluteUri
+    $Response.Close()
 } catch {
-    # PowerShell throws an error on 3xx redirects when MaximumRedirection is 0, which is expected
-    if ($_.Exception.Response.Headers["Location"]) {
-        $LatestTagUrl = $_.Exception.Response.Headers["Location"]
-    } else {
-        Write-Error "Could not determine latest version: $($_.Exception.Message)"
-        exit 1
-    }
+    Write-Error "Could not determine latest version: $($_.Exception.Message)"
+    exit 1
 }
 
 # Extract tag from URL (e.g., https://github.com/user/repo/releases/tag/v1.0.0)
