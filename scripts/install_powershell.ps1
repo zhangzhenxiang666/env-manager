@@ -5,10 +5,25 @@ $InstallDir = "$env:USERPROFILE\.config\env-manage\bin"
 $TargetBin = "$InstallDir\env-manage.exe"
 
 Write-Host "Fetching latest version..."
-$LatestTag = (Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest").tag_name
+try {
+    # Attempt to fetch the latest release page with 0 redirects to get the location header
+    $Response = Invoke-WebRequest -Uri "https://github.com/$Repo/releases/latest" -Method Head -MaximumRedirection 0 -ErrorAction Stop
+    $LatestTagUrl = $Response.Headers.Location
+} catch {
+    # PowerShell throws an error on 3xx redirects when MaximumRedirection is 0, which is expected
+    if ($_.Exception.Response.Headers["Location"]) {
+        $LatestTagUrl = $_.Exception.Response.Headers["Location"]
+    } else {
+        Write-Error "Could not determine latest version: $($_.Exception.Message)"
+        exit 1
+    }
+}
+
+# Extract tag from URL (e.g., https://github.com/user/repo/releases/tag/v1.0.0)
+$LatestTag = $LatestTagUrl | Split-Path -Leaf
 
 if ([string]::IsNullOrEmpty($LatestTag)) {
-    Write-Error "Could not determine latest version."
+    Write-Error "Could not determine latest version tag from URL: $LatestTagUrl"
     exit 1
 }
 
