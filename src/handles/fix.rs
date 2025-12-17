@@ -70,6 +70,14 @@ fn fix_profile(
             // Top level profile not found? Can't fix.
             Ok(false)
         }
+        DependencyError::ProfileIoError(_, _) => {
+            // IO error? Can't fix automatically.
+            Ok(false)
+        }
+        DependencyError::ProfileParseError(_, _) => {
+            // Parse error? Can't fix automatically.
+            Ok(false)
+        }
     }
 }
 

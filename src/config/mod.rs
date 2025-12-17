@@ -149,10 +149,21 @@ impl ConfigManager {
         visiting.insert(name.to_string());
 
         // Load from file
-        let profile = loader::load_profile_from_file(&self.base_path, name).map_err(|_| {
-            // Mapping IO error (or custom error from loader) to DependencyError
-            DependencyError::ProfileNotFound(name.to_string())
-        })?;
+        let profile = match loader::load_profile_from_file(&self.base_path, name) {
+            Ok(p) => p,
+            Err(e) => {
+                let dep_err = match e {
+                    loader::LoadError::Io(err) => {
+                        DependencyError::ProfileIoError(name.to_string(), err)
+                    }
+                    loader::LoadError::Parse(err) => {
+                        DependencyError::ProfileParseError(name.to_string(), err)
+                    }
+                    loader::LoadError::NotFound(n) => DependencyError::ProfileNotFound(n),
+                };
+                return Err(dep_err);
+            }
+        };
 
         // Ensure node exists in graph
         self.app_config.add_profile_node(name.to_string());

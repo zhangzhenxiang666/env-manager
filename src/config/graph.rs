@@ -17,6 +17,10 @@ pub enum DependencyError {
     },
     /// Multiple errors occurred
     MultipleErrors(Vec<DependencyError>),
+    /// IO error during profile loading: (profile, error)
+    ProfileIoError(String, std::io::Error),
+    /// Parse error during profile loading: (profile, error)
+    ProfileParseError(String, toml::de::Error),
 }
 
 impl std::fmt::Display for DependencyError {
@@ -66,6 +70,12 @@ impl std::fmt::Display for DependencyError {
             }
             DependencyError::ProfileNotFound(profile) => {
                 write!(f, "Profile '{profile}' not found.")
+            }
+            DependencyError::ProfileIoError(profile, err) => {
+                write!(f, "Failed to read profile '{profile}': {err}")
+            }
+            DependencyError::ProfileParseError(profile, err) => {
+                write!(f, "Failed to parse profile '{profile}': {err}")
             }
             DependencyError::DependencyChain { .. } => unreachable!(),
             DependencyError::MultipleErrors(errors) => {

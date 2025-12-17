@@ -1,7 +1,48 @@
 use super::models::Profile;
 use std::error::Error;
+use std::fmt;
 use std::fs;
+use std::io;
 use std::path::Path;
+
+#[derive(Debug)]
+pub enum LoadError {
+    Io(io::Error),
+    Parse(toml::de::Error),
+    NotFound(String),
+}
+
+impl fmt::Display for LoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LoadError::Io(err) => write!(f, "IO error: {}", err),
+            LoadError::Parse(err) => write!(f, "Parse error: {}", err),
+            LoadError::NotFound(name) => write!(f, "Profile '{}' not found", name),
+        }
+    }
+}
+
+impl Error for LoadError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            LoadError::Io(err) => Some(err),
+            LoadError::Parse(err) => Some(err),
+            LoadError::NotFound(_) => None,
+        }
+    }
+}
+
+impl From<io::Error> for LoadError {
+    fn from(err: io::Error) -> Self {
+        LoadError::Io(err)
+    }
+}
+
+impl From<toml::de::Error> for LoadError {
+    fn from(err: toml::de::Error) -> Self {
+        LoadError::Parse(err)
+    }
+}
 
 pub fn scan_profile_names(path: &Path) -> Result<Vec<String>, Box<dyn Error>> {
     let mut names = Vec::new();
@@ -21,10 +62,10 @@ pub fn scan_profile_names(path: &Path) -> Result<Vec<String>, Box<dyn Error>> {
     Ok(names)
 }
 
-pub fn load_profile_from_file(base_path: &Path, name: &str) -> Result<Profile, Box<dyn Error>> {
+pub fn load_profile_from_file(base_path: &Path, name: &str) -> Result<Profile, LoadError> {
     let path = base_path.join("profiles").join(format!("{name}.toml"));
     if !path.exists() {
-        return Err(format!("Profile '{name}' not found.").into());
+        return Err(LoadError::NotFound(name.to_string()));
     }
     let content = fs::read_to_string(&path)?;
     let profile: Profile = toml::from_str(&content)?;
