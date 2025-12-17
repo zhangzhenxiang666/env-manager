@@ -99,10 +99,10 @@ jobs:
           # Archive logic
           cd staging
           if [[ "${{ matrix.archive }}" == "zip" ]]; then
-            7z a "../../release/$DIR_NAME.zip" "$DIR_NAME"
+            7z a "../release/$DIR_NAME.zip" "$DIR_NAME"
             echo "ASSET_PATH=release/$DIR_NAME.zip" >> $GITHUB_ENV
           else
-            tar -czf "../../release/$DIR_NAME.tar.gz" "$DIR_NAME"
+            tar -czf "../release/$DIR_NAME.tar.gz" "$DIR_NAME"
             echo "ASSET_PATH=release/$DIR_NAME.tar.gz" >> $GITHUB_ENV
           fi
 
