@@ -1,3 +1,5 @@
+function em {
+    $env:EM_SHELL = "powershell"
     $origColorForce = $env:CLICOLOR_FORCE
     $env:CLICOLOR_FORCE = '1'
 
@@ -23,5 +25,6 @@
     }
 
     $global:LASTEXITCODE = $exitCode
+}
 
 em global init
