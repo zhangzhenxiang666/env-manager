@@ -75,6 +75,7 @@ jobs:
           fi
 
       - name: Prepare Release Artifacts
+        id: prepare
         shell: bash
         run: |
           mkdir -p release
@@ -100,17 +101,17 @@ jobs:
           cd staging
           if [[ "${{ matrix.archive }}" == "zip" ]]; then
             7z a "../release/$DIR_NAME.zip" "$DIR_NAME"
-            echo "ASSET_PATH=release/$DIR_NAME.zip" >> $GITHUB_ENV
+            echo "asset_path=release/$DIR_NAME.zip" >> $GITHUB_OUTPUT
           else
             tar -czf "../release/$DIR_NAME.tar.gz" "$DIR_NAME"
-            echo "ASSET_PATH=release/$DIR_NAME.tar.gz" >> $GITHUB_ENV
+            echo "asset_path=release/$DIR_NAME.tar.gz" >> $GITHUB_OUTPUT
           fi
 
       - name: Calculate Checksum
         shell: bash
         run: |
           cd release
-          FILE=$(basename "${{ env.ASSET_PATH }}")
+          FILE=$(basename "${{ steps.prepare.outputs.asset_path }}")
           if [[ "${{ runner.os }}" == "macOS" ]]; then
              shasum -a 256 "$FILE" > "$FILE.sha256"
           else
@@ -121,6 +122,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ env.ASSET_PATH }}
-            ${{ env.ASSET_PATH }}.sha256
+            ${{ steps.prepare.outputs.asset_path }}
+            ${{ steps.prepare.outputs.asset_path }}.sha256
           generate_release_notes: true

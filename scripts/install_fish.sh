@@ -46,8 +46,8 @@ echo "Installing $BINARY to $TARGET_BIN ..."
 mkdir -p "$INSTALL_DIR"
 
 # 2. Download binary
-echo "Fetching latest version..."
-LATEST_TAG=$(curl -s https://api.github.com/repos/$REPO/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+LATEST_URL=$(curl -Ls -o /dev/null -w %{url_effective} "https://github.com/$REPO/releases/latest")
+LATEST_TAG=$(basename "$LATEST_URL")
 
 if [ -z "$LATEST_TAG" ]; then
     echo "Error: Could not determine latest version."
