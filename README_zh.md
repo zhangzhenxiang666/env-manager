@@ -35,7 +35,7 @@ http_proxy = "http://172.26.240.1:7890"
 - **配置文件管理**: 创建并将环境变量组织成不同的配置文件。
 - **依赖解析**: 处理配置文件之间复杂的依赖关系。
 - **TUI 界面**: 终端用户界面，用于直观地管理配置。
-- **Shell 集成**: 支持 Bash, Zsh, 和 Fish。
+- **Shell Integration**: 支持 Bash, Zsh, Fish, 和 PowerShell。
 
 ## 安装指南
 
@@ -52,6 +52,50 @@ curl -fsSL https://raw.githubusercontent.com/zhangzhenxiang666/env-manager/main/
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zhangzhenxiang666/env-manager/main/scripts/install_zsh.sh | bash
 ```
+
+### Fish
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zhangzhenxiang666/env-manager/main/scripts/install_fish.sh | bash
+```
+
+### PowerShell (Windows)
+
+```powershell
+irm https://raw.githubusercontent.com/zhangzhenxiang666/env-manager/main/scripts/install_powershell.ps1 | iex
+```
+
+### 手动安装
+
+如果您更喜欢手动安装：
+
+1. 从 [Releases](https://github.com/zhangzhenxiang666/env-manager/releases) 页面下载二进制文件。
+2. 将其放置在您选择的目录中。**注意**：您**不需要**将此目录添加到系统的 `PATH` 环境变量中。
+3. 将初始化命令添加到您的 Shell 配置文件中。请将 `/path/to/env-manage` 替换为您实际的二进制文件路径。
+
+    - **Bash (`~/.bashrc`)**:
+
+        ```bash
+        eval "$(/path/to/env-manage init bash)"
+        ```
+
+    - **Zsh (`~/.zshrc`)**:
+
+        ```bash
+        eval "$(/path/to/env-manage init zsh)"
+        ```
+
+    - **Fish (`~/.config/fish/config.fish`)**:
+
+        ```fish
+        /path/to/env-manage init fish | source
+        ```
+
+    - **PowerShell (`$PROFILE`)**:
+
+        ```powershell
+        Invoke-Expression (& "C:\path\to\env-manage.exe" init powershell | Out-String)
+        ```
 
 > **注意**: 安装完成后，请重启您的终端或运行 `source ~/.bashrc` (或相应配置文件) 以加载配置。
 
@@ -105,14 +149,6 @@ em ui
 
     ```bash
     em fix
-    ```
-
-- **初始化 Shell**:
-
-    (安装脚本会自动配置，通常不需要手动运行)
-
-    ```bash
-    em init
     ```
 
 ## 配置

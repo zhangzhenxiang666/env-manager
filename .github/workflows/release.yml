@@ -20,18 +20,29 @@ jobs:
             os: ubuntu-latest
             suffix: linux-amd64
             use_cross: false
+            archive: tar.gz
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
             suffix: linux-aarch64
             use_cross: true
+            archive: tar.gz
           - target: x86_64-apple-darwin
             os: macos-latest
             suffix: darwin-amd64
             use_cross: false
+            archive: tar.gz
           - target: aarch64-apple-darwin
             os: macos-latest
             suffix: darwin-aarch64
             use_cross: false
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            suffix: windows-amd64
+            use_cross: false
+            archive: zip
+            # Key change: Static CRT linking for portability (like musl)
+            rustflags: "-C target-feature=+crt-static"
 
     steps:
       - name: Checkout code
@@ -53,6 +64,9 @@ jobs:
         run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Build Release Binary
+        shell: bash
+        env:
+          RUSTFLAGS: ${{ matrix.rustflags }}
         run: |
           if [ "${{ matrix.use_cross }}" = "true" ]; then
             cross build --release --target ${{ matrix.target }}
@@ -60,22 +74,53 @@ jobs:
             cargo build --release --target ${{ matrix.target }}
           fi
 
-      - name: Rename Binary
+      - name: Prepare Release Artifacts
+        shell: bash
         run: |
           mkdir -p release
-          cp target/${{ matrix.target }}/release/env-manage release/env-manage-${{ matrix.suffix }}
+          
+          # Binary name logic
+          BIN_NAME="env-manage"
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            BIN_NAME="env-manage.exe"
+          fi
+          
+          # Source path
+          SRC_PATH="target/${{ matrix.target }}/release/$BIN_NAME"
+          
+          # Versioned Directory Name (e.g., env-manage-v1.0.0-linux-amd64)
+          VERSION="${{ github.ref_name }}"
+          DIR_NAME="env-manage-${VERSION}-${{ matrix.suffix }}"
+          
+          # Stage logic
+          mkdir -p "staging/$DIR_NAME"
+          cp "$SRC_PATH" "staging/$DIR_NAME/$BIN_NAME"
+          
+          # Archive logic
+          cd staging
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            7z a "../../release/$DIR_NAME.zip" "$DIR_NAME"
+            echo "ASSET_PATH=release/$DIR_NAME.zip" >> $GITHUB_ENV
+          else
+            tar -czf "../../release/$DIR_NAME.tar.gz" "$DIR_NAME"
+            echo "ASSET_PATH=release/$DIR_NAME.tar.gz" >> $GITHUB_ENV
+          fi
 
-      - name: Create tarball
+      - name: Calculate Checksum
+        shell: bash
         run: |
           cd release
-          tar -czf env-manage-${{ matrix.suffix }}.tar.gz env-manage-${{ matrix.suffix }}
-          sha256sum env-manage-${{ matrix.suffix }}.tar.gz > env-manage-${{ matrix.suffix }}.tar.gz.sha256
+          FILE=$(basename "${{ env.ASSET_PATH }}")
+          if [[ "${{ runner.os }}" == "macOS" ]]; then
+             shasum -a 256 "$FILE" > "$FILE.sha256"
+          else
+             sha256sum "$FILE" > "$FILE.sha256"
+          fi
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            release/env-manage-${{ matrix.suffix }}
-            release/env-manage-${{ matrix.suffix }}.tar.gz
-            release/env-manage-${{ matrix.suffix }}.tar.gz.sha256
+            ${{ env.ASSET_PATH }}
+            ${{ env.ASSET_PATH }}.sha256
           generate_release_notes: true

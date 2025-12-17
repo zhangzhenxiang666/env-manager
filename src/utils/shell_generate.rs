@@ -6,25 +6,12 @@ pub enum ShellType {
     Bash,
     Zsh,
     Fish,
-    #[cfg(target_os = "windows")]
     PowerShell,
-    #[cfg(target_os = "windows")]
-    Cmd,
 }
 
 impl ShellType {
     fn unsupported_shell_error(shell: &str) -> String {
-        const SUPPORTED: &[&str] = &[
-            "bash",
-            "zsh",
-            "fish",
-            #[cfg(target_os = "windows")]
-            "powershell",
-            #[cfg(target_os = "windows")]
-            "pwsh",
-            #[cfg(target_os = "windows")]
-            "cmd",
-        ];
+        const SUPPORTED: &[&str] = &["bash", "zsh", "fish", "powershell", "pwsh"];
 
         let shells_list = SUPPORTED
             .iter()
@@ -43,10 +30,7 @@ impl ShellType {
         if let Ok(shell_type) = env::var("EM_SHELL") {
             return match shell_type.to_lowercase().as_str() {
                 "fish" => ShellType::Fish,
-                #[cfg(target_os = "windows")]
                 "pwsh" | "powershell" => ShellType::PowerShell,
-                #[cfg(target_os = "windows")]
-                "cmd" => ShellType::Cmd,
                 "bash" => ShellType::Bash,
                 "zsh" => ShellType::Zsh,
                 _ => ShellType::Bash,
@@ -69,25 +53,12 @@ impl ShellType {
                 let escaped_value = value.replace('\\', r"\\").replace('\'', r"\'");
                 format!("set -gx {key} '{escaped_value}'")
             }
-            #[cfg(target_os = "windows")]
             Self::PowerShell => {
                 let escaped_value = value
                     .replace('`', "``")
                     .replace('"', "`\"")
                     .replace('$', "`$");
                 format!("$env:{key}=\"{escaped_value}\"")
-            }
-            #[cfg(target_os = "windows")]
-            Self::Cmd => {
-                let escaped_value = value
-                    .replace('%', "%%")
-                    .replace('^', "^^")
-                    .replace('&', "^&")
-                    .replace('|', "^|")
-                    .replace('<', "^<")
-                    .replace('>', "^>")
-                    .replace('"', "^\"");
-                format!("set {key}={escaped_value}")
             }
         }
     }
@@ -96,10 +67,7 @@ impl ShellType {
         match self {
             Self::Bash | Self::Zsh => format!("unset {key}"),
             Self::Fish => format!("set -e {key}"),
-            #[cfg(target_os = "windows")]
             Self::PowerShell => format!("Remove-Item Env:{key}"),
-            #[cfg(target_os = "windows")]
-            Self::Cmd => format!("set {key}="),
         }
     }
 }
@@ -110,10 +78,7 @@ impl TryFrom<&str> for ShellType {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value.to_lowercase().as_str() {
             "fish" => Ok(ShellType::Fish),
-            #[cfg(target_os = "windows")]
             "pwsh" | "powershell" => Ok(ShellType::PowerShell),
-            #[cfg(target_os = "windows")]
-            "cmd" => Ok(ShellType::Cmd),
             "bash" => Ok(ShellType::Bash),
             "zsh" => Ok(ShellType::Zsh),
             _ => Err(Self::unsupported_shell_error(value)),

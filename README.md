@@ -35,7 +35,7 @@ http_proxy = "http://172.26.240.1:7890"
 - **Profile Management**: Create and organize environment variables into different profiles.
 - **Dependency Resolution**: Handle complex dependencies between profiles.
 - **TUI Interface**: Terminal user interface for intuitive configuration management.
-- **Shell Integration**: Support for Bash, Zsh, and Fish.
+- **Shell Integration**: Support for Bash, Zsh, Fish, and PowerShell.
 
 ## Installation
 
@@ -52,6 +52,50 @@ curl -fsSL https://raw.githubusercontent.com/zhangzhenxiang666/env-manager/main/
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zhangzhenxiang666/env-manager/main/scripts/install_zsh.sh | bash
 ```
+
+### Fish
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zhangzhenxiang666/env-manager/main/scripts/install_fish.sh | bash
+```
+
+### PowerShell (Windows)
+
+```powershell
+irm https://raw.githubusercontent.com/zhangzhenxiang666/env-manager/main/scripts/install_powershell.ps1 | iex
+```
+
+### Manual Installation
+
+If you prefer to install manually:
+
+1. Download the binary from the [Releases](https://github.com/zhangzhenxiang666/env-manager/releases) page.
+2. Place it in a directory of your choice. **Note**: You do **not** need to add this directory to your system `PATH`.
+3. Add the initialization command to your shell configuration file. Replace `/path/to/env-manage` with the actual path to your binary.
+
+    - **Bash (`~/.bashrc`)**:
+
+        ```bash
+        eval "$(/path/to/env-manage init bash)"
+        ```
+
+    - **Zsh (`~/.zshrc`)**:
+
+        ```bash
+        eval "$(/path/to/env-manage init zsh)"
+        ```
+
+    - **Fish (`~/.config/fish/config.fish`)**:
+
+        ```fish
+        /path/to/env-manage init fish | source
+        ```
+
+    - **PowerShell (`$PROFILE`)**:
+
+        ```powershell
+        Invoke-Expression (& "C:\path\to\env-manage.exe" init powershell | Out-String)
+        ```
 
 > **Note**: After installation, please restart your terminal or run `source ~/.bashrc` (or the equivalent config file) to load the configuration.
 
@@ -105,14 +149,6 @@ em ui
 
     ```bash
     em fix
-    ```
-
-- **Initialize Shell**:
-
-    (Automatically configured by the install script, usually does not need to be run manually)
-
-    ```bash
-    em init
     ```
 
 ## Configuration

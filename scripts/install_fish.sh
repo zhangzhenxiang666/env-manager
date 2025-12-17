@@ -1,11 +1,13 @@
 #!/bin/bash
 
+# Note: This script is run with bash, but installs for fish.
+
 set -e
 
 REPO="zhangzhenxiang666/env-manager"
 INSTALL_DIR="$HOME/.config/env-manage/bin"
 TARGET_BIN="$INSTALL_DIR/env-manage"
-RC_FILE="$HOME/.bashrc"
+RC_FILE="$HOME/.config/fish/config.fish"
 
 # Detect OS and Arch
 OS="$(uname -s)"
@@ -38,7 +40,7 @@ fi
 BINARY="env-manage-${BINARY_SUFFIX}"
 
 echo "Detected OS: $OS, Arch: $ARCH"
-echo "Installing $BINARY ..."
+echo "Installing $BINARY to $TARGET_BIN ..."
 
 # 1. Create directory
 mkdir -p "$INSTALL_DIR"
@@ -60,11 +62,10 @@ echo "Downloading from: $DOWNLOAD_URL"
 TEMP_DIR=$(mktemp -d)
 curl -L "$DOWNLOAD_URL" -o "$TEMP_DIR/$ASSET_NAME"
 
-echo "Extracting..."
+# Extract
 tar -xzf "$TEMP_DIR/$ASSET_NAME" -C "$TEMP_DIR"
 
-# Find binary
-# CI structure: env-manage-<ver>-<suff>/env-manage
+# Find the binary
 FIND_BIN=$(find "$TEMP_DIR" -type f -name "env-manage" | head -n 1)
 
 if [ -z "$FIND_BIN" ]; then
@@ -81,11 +82,11 @@ chmod +x "$TARGET_BIN"
 
 # 4. Add to shell config
 echo "Configuring $RC_FILE..."
+mkdir -p "$(dirname "$RC_FILE")"
 
-INIT_CMD="eval \"\$($TARGET_BIN init bash)\""
+INIT_CMD="$TARGET_BIN init fish | source"
 
-# Check if already configured
-if grep -q "env-manage init bash" "$RC_FILE"; then
+if [ -f "$RC_FILE" ] && grep -q "env-manage init fish" "$RC_FILE"; then
     echo "env-manage init already configured in $RC_FILE"
 else
     echo "" >> "$RC_FILE"
@@ -95,4 +96,4 @@ else
 fi
 
 echo "Installation complete!"
-echo "Please restart your shell or run 'source $RC_FILE' to use 'em'."
+echo "Please restart your shell to use 'em'."
